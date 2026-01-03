@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js",
-    "seed": "node seeds/seedWithOnlineAudio.js"
+    "seed": "node seeds/seed.js"
   },
   "keywords": [],
   "author": "",

@@ -12,6 +12,7 @@ const ArtistPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { setCurrentTrack, setPlaylist, play } = usePlayer();
+
   const [artist, setArtist] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,11 +24,13 @@ const ArtistPage = () => {
   const fetchArtist = async () => {
     try {
       const response = await artistAPI.getById(id);
-      setArtist(response.data.data);
-      
-      // Check if user follows this artist
+      const data = response.data.data;
+      setArtist(data);
+
       if (user?.followedArtists) {
-        const following = user.followedArtists.some(a => a._id === id || a === id);
+        const following = user.followedArtists.some(
+          (a) => a._id === id || a === id,
+        );
         setIsFollowing(following);
       }
     } catch (error) {
@@ -67,25 +70,25 @@ const ArtistPage = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <i className="fas fa-spinner fa-spin text-4xl text-blue-400" />
       </div>
     );
   }
 
   if (!artist) {
     return (
-      <div className="flex h-screen bg-slate-950 text-white">
+      <div className="flex h-screen bg-gray-900 text-gray-100">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopNav />
           <main className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <i className="fas fa-exclamation-circle text-6xl text-slate-600 mb-4"></i>
-              <p className="text-slate-400 mb-4">Artist not found</p>
+              <i className="fas fa-exclamation-circle text-6xl text-gray-700 mb-4" />
+              <p className="text-gray-400 mb-4">Artist not found</p>
               <button
                 onClick={() => navigate('/')}
-                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-full transition-colors"
+                className="px-6 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-sm font-semibold hover:from-blue-600 hover:to-purple-600 transition-all"
               >
                 Go Home
               </button>
@@ -97,43 +100,53 @@ const ArtistPage = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav />
 
         <main className="flex-1 overflow-y-auto pb-32">
-          {/* Artist Header */}
-          <div 
-            className="relative h-96 bg-cover bg-center"
-            style={{
-              backgroundImage: `url(${artist.coverImage})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/50 to-slate-950"></div>
-            
-            <div className="absolute bottom-0 left-0 right-0 px-8 pb-8">
-              <div className="flex items-end space-x-6">
-                <img
-                  src={artist.imageUrl}
-                  alt={artist.name}
-                  className="w-48 h-48 rounded-full shadow-2xl border-4 border-slate-950"
-                />
-                <div className="flex-1 pb-4">
+          {/* Artist header with gradient background */}
+          <div className="relative h-80 bg-gradient-to-b from-gray-950 to-gray-900 border-b border-gray-800">
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{
+                backgroundImage: `url(${artist.coverImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                filter: 'blur(40px)',
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-gray-900/80 to-gray-900" />
+
+            <div className="relative h-full px-8 py-10 flex items-end">
+              <div className="flex items-end gap-6">
+                <div className="w-40 h-40 rounded-full bg-gray-800 overflow-hidden border-4 border-gray-900 shadow-2xl neon-glow">
+                  <img
+                    src={artist.imageUrl}
+                    alt={artist.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
                   {artist.verified && (
-                    <div className="flex items-center space-x-2 mb-2">
-                      <i className="fas fa-check-circle text-blue-500"></i>
-                      <span className="text-sm">Verified Artist</span>
+                    <div className="flex items-center gap-2 mb-2 text-sm text-blue-300">
+                      <i className="fas fa-check-circle" />
+                      <span>Verified Artist</span>
                     </div>
                   )}
-                  <h1 className="text-6xl font-bold mb-4">{artist.name}</h1>
-                  <div className="flex items-center space-x-4 text-sm text-slate-300">
-                    <span>{(artist.monthlyListeners || 0).toLocaleString()} monthly listeners</span>
+                  <h1 className="text-5xl font-bold mb-2 text-white">
+                    {artist.name}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                    <span>
+                      {(artist.monthlyListeners || 0).toLocaleString()} monthly listeners
+                    </span>
                     <span>•</span>
-                    <span>{(artist.followers || 0).toLocaleString()} followers</span>
+                    <span>
+                      {(artist.followers || 0).toLocaleString()} followers
+                    </span>
                   </div>
                 </div>
               </div>
@@ -141,154 +154,159 @@ const ArtistPage = () => {
           </div>
 
           {/* Controls */}
-          <div className="bg-gradient-to-b from-slate-950 to-slate-900 px-8 py-6 flex items-center space-x-4">
+          <div className="px-8 py-6 bg-gray-900/90 border-b border-gray-800 flex items-center gap-4">
             <button
               onClick={handlePlayAll}
               disabled={!artist.topTracks || artist.topTracks.length === 0}
-              className="w-14 h-14 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white hover:from-blue-600 hover:to-purple-600 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <i className="fas fa-play text-xl ml-1"></i>
+              <i className="fas fa-play text-xl ml-1" />
             </button>
-
             <button
               onClick={handleFollow}
-              className={`px-8 py-3 rounded-full border-2 font-medium transition-all ${
+              className={`px-6 py-2 rounded-full border text-sm font-medium transition-all ${
                 isFollowing
-                  ? 'border-slate-500 text-slate-300 hover:border-white hover:text-white'
-                  : 'border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white'
+                ? 'border-gray-500 text-gray-200 hover:border-white'
+                : 'border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white'
               }`}
             >
               {isFollowing ? 'Following' : 'Follow'}
             </button>
-
-            <button className="text-slate-400 hover:text-white transition-colors">
-              <i className="fas fa-ellipsis-h text-xl"></i>
+            <button className="text-gray-400 hover:text-gray-100 transition-colors">
+              <i className="fas fa-ellipsis-h text-xl" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="px-8 py-6">
+          <div className="px-8 py-8 space-y-10">
             {/* Popular Tracks */}
             {artist.topTracks && artist.topTracks.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">Popular</h2>
-                <div className="space-y-1">
-                  {artist.topTracks.map((track, index) => (
-                    <TrackItem
-                      key={track._id}
-                      track={track}
-                      index={index}
-                      onPlay={() => handlePlayTrack(track, artist.topTracks)}
-                      showAlbum={true}
-                      showArtist={false}
-                    />
-                  ))}
+              <section>
+                <h2 className="text-2xl font-bold mb-4">Popular</h2>
+                <div className="bg-gray-900/80 border border-gray-800 rounded-2xl overflow-hidden">
+                  <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 text-xs text-gray-400 uppercase tracking-wider border-b border-gray-800 mb-1">
+                    <div className="col-span-1">#</div>
+                    <div className="col-span-5">Title</div>
+                    <div className="col-span-3">Album</div>
+                    <div className="col-span-2">Genre</div>
+                    <div className="col-span-1 text-right">
+                      <i className="far fa-clock" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    {artist.topTracks.map((track, index) => (
+                      <TrackItem
+                        key={track._id}
+                        track={track}
+                        index={index}
+                        onPlay={() => handlePlayTrack(track, artist.topTracks)}
+                        showAlbum={true}
+                        showArtist={false}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </section>
             )}
 
             {/* About */}
-            <div className="mb-12">
+            <section>
               <h2 className="text-2xl font-bold mb-4">About</h2>
-              <div className="bg-slate-800 rounded-xl p-6">
-                <div className="flex items-start space-x-6">
-                  <img
-                    src={artist.imageUrl}
-                    alt={artist.name}
-                    className="w-32 h-32 rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <p className="text-slate-300 mb-4">{artist.bio}</p>
-                    
-                    {artist.genres && artist.genres.length > 0 && (
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                          Genres
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {artist.genres.map((genre, index) => (
-                            <span
-                              key={index}
-                              className="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-sm"
-                            >
-                              {genre}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+              <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6">
+                <p className="text-gray-300 mb-4">{artist.bio}</p>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-3xl font-bold">
-                          {(artist.monthlyListeners || 0).toLocaleString()}
-                        </div>
-                        <div className="text-slate-400 text-sm">Monthly Listeners</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold">
-                          {(artist.followers || 0).toLocaleString()}
-                        </div>
-                        <div className="text-slate-400 text-sm">Followers</div>
-                      </div>
+                {artist.genres && artist.genres.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-xs uppercase tracking-wider text-gray-400 mb-2">
+                      Genres
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {artist.genres.map((genre, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 rounded-full bg-gray-800 text-gray-200 text-xs"
+                        >
+                          {genre}
+                        </span>
+                      ))}
                     </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-400">
+                      {(artist.monthlyListeners || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Monthly listeners</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-400">
+                      {(artist.followers || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Followers</p>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
             {/* Discography */}
             {artist.albums && artist.albums.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">Discography</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {artist.albums.map((album, index) => (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">Discography</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {artist.albums.map((album, idx) => (
                     <div
-                      key={index}
-                      className="bg-slate-800 rounded-lg p-4 hover:bg-slate-700 transition-colors cursor-pointer group"
+                      key={idx}
+                      className="card-hover bg-gray-900/80 border border-gray-800 rounded-xl p-4 cursor-pointer group"
                     >
-                      <div className="relative mb-4">
+                      <div className="relative mb-3">
                         <img
                           src={album.coverImage}
                           alt={album.title}
                           className="w-full aspect-square object-cover rounded-lg"
                         />
-                        <button className="absolute bottom-2 right-2 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl">
-                          <i className="fas fa-play text-white text-sm ml-1"></i>
+                        <button className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl">
+                          <i className="fas fa-play text-xs ml-0.5" />
                         </button>
                       </div>
-                      <h3 className="font-semibold mb-1 truncate">{album.title}</h3>
-                      <p className="text-sm text-slate-400">{album.releaseYear}</p>
+                      <h3 className="text-sm font-semibold mb-1 truncate">
+                        {album.title}
+                      </h3>
+                      <p className="text-xs text-gray-400">{album.releaseYear}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Similar Artists */}
             {artist.similarArtists && artist.similarArtists.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">Fans also like</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {artist.similarArtists.map((similarArtist) => (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">Fans also like</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {artist.similarArtists.map((a) => (
                     <div
-                      key={similarArtist._id}
-                      onClick={() => navigate(`/artist/${similarArtist._id}`)}
-                      className="bg-slate-800 rounded-lg p-4 hover:bg-slate-700 transition-colors cursor-pointer text-center"
+                      key={a._id}
+                      onClick={() => navigate(`/artists/${a._id}`)}
+                      className="card-hover bg-gray-900/80 border border-gray-800 rounded-xl p-4 text-center cursor-pointer"
                     >
-                      <div className="relative mb-4">
+                      <div className="mb-3">
                         <img
-                          src={similarArtist.imageUrl}
-                          alt={similarArtist.name}
+                          src={a.imageUrl}
+                          alt={a.name}
                           className="w-full aspect-square object-cover rounded-full"
                         />
                       </div>
-                      <h3 className="font-semibold mb-1 truncate">{similarArtist.name}</h3>
-                      <p className="text-sm text-slate-400">Artist</p>
+                      <h3 className="text-sm font-semibold mb-1 truncate">
+                        {a.name}
+                      </h3>
+                      <p className="text-xs text-gray-400">Artist</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
           </div>
         </main>

@@ -16,7 +16,7 @@ const SmartStatsPage = () => {
   const fetchStats = async () => {
     try {
       const response = await userAPI.getSmartStats();
-      setStats(response.data.data);
+      setStats(response.data.data || null);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -29,35 +29,36 @@ const SmartStatsPage = () => {
       mood: 'from-purple-500 to-pink-500',
       compatibility: 'from-blue-500 to-cyan-500',
       global: 'from-green-500 to-emerald-500',
-      energy: 'from-orange-500 to-red-500'
+      energy: 'from-orange-500 to-red-500',
+      artist: 'from-indigo-500 to-purple-500',
     };
-    return colors[type] || 'from-slate-500 to-slate-600';
+    return colors[type] || 'from-gray-500 to-gray-700';
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <i className="fas fa-spinner fa-spin text-4xl text-blue-400" />
       </div>
     );
   }
 
   if (!stats || !stats.insights || stats.insights.length === 0) {
     return (
-      <div className="flex h-screen bg-slate-950 text-slate-100">
+      <div className="flex h-screen bg-gray-900 text-gray-100">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopNav />
           <main className="flex-1 flex items-center justify-center pb-32">
             <div className="text-center px-4">
               <div className="text-6xl mb-6">📊</div>
-              <h2 className="text-3xl font-bold mb-4">Not Enough Data Yet</h2>
-              <p className="text-slate-400 mb-8 max-w-md mx-auto">
-                Keep listening to unlock personalized insights about your music habits
+              <h2 className="text-3xl font-bold mb-3">Not Enough Data Yet</h2>
+              <p className="text-gray-400 mb-6 max-w-md mx-auto text-sm">
+                Keep listening to unlock personalized insights about your music habits.
               </p>
               <button
                 onClick={() => navigate('/')}
-                className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-full font-semibold transition"
+                className="px-8 py-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-sm font-semibold hover:from-blue-600 hover:to-purple-600 transition-all shadow-lg"
               >
                 Start Listening
               </button>
@@ -69,172 +70,177 @@ const SmartStatsPage = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav />
 
-        <main className="flex-1 overflow-y-auto pb-32">
-          <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8">
+        <main className="flex-1 overflow-y-auto pb-32 px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-6xl mx-auto space-y-10">
             {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-2">Smart Stats</h1>
-              <p className="text-slate-400">Insights that actually matter</p>
-            </div>
+            <header>
+              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Smart Stats
+              </h1>
+              <p className="text-gray-400 text-sm">
+                Insights that actually say something about your listening.
+              </p>
+            </header>
 
-            {/* Key Insights */}
-            <div className="mb-12">
-              <h2 className="text-2xl font-bold mb-6">
-                <span className="text-3xl mr-2">✨</span>
-                Your Musical Insights
+            {/* Insights Grid */}
+            <section>
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <span>✨</span> Key Insights
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {stats.insights.map((insight, index) => (
                   <div
                     key={index}
-                    className={`bg-gradient-to-br ${getInsightColor(insight.type)} p-[2px] rounded-2xl`}
+                    className={`bg-gradient-to-br ${getInsightColor(
+                      insight.type,
+                    )} p-[2px] rounded-2xl`}
                   >
-                    <div className="bg-slate-900 rounded-2xl p-6 h-full">
-                      <div className="text-4xl mb-4">{insight.icon}</div>
-                      <p className="text-lg leading-relaxed">{insight.text}</p>
+                    <div className="bg-gray-900 rounded-2xl p-6 h-full backdrop-blur-sm">
+                      <div className="text-3xl mb-3">{insight.icon}</div>
+                      <p className="text-sm sm:text-base leading-relaxed">
+                        {insight.text}
+                      </p>
+
                       {insight.type === 'mood' && insight.value > 0 && (
-                        <div className="mt-4 inline-flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full">
-                          <i className="fas fa-arrow-up text-red-400"></i>
-                          <span className="text-sm font-semibold">+{insight.value}%</span>
+                        <div className="mt-4 inline-flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-xs">
+                          <i className="fas fa-arrow-up text-pink-400" />
+                          <span className="font-semibold">
+                            +{insight.value}% more chill
+                          </span>
                         </div>
                       )}
+
                       {insight.type === 'compatibility' && (
                         <div className="mt-4">
-                          <div className="w-full bg-slate-800 rounded-full h-2">
+                          <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
                             <div
-                              className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full"
+                              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
                               style={{ width: `${insight.value}%` }}
                             />
                           </div>
                         </div>
                       )}
+
+                      {insight.type === 'global' && (
+                        <p className="mt-3 text-xs text-gray-400">
+                          Based on your favorite genres and playtime.
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
             {/* Top Artists */}
             {stats.topArtists && stats.topArtists.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">
-                  <span className="text-3xl mr-2">🎤</span>
-                  Your Top Artists
+              <section>
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <span>🎤</span> Your Top Artists
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {stats.topArtists.map((artist, index) => (
                     <div
                       key={artist.id}
-                      className="bg-slate-800 rounded-xl p-4 hover:bg-slate-700 transition group cursor-pointer"
+                      className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 flex items-center gap-4 hover:border-gray-600 transition-all"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-xl font-bold">
-                          #{index + 1}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+                        #{index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">
+                          {artist.name}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold truncate">{artist.name}</h3>
-                          <p className="text-sm text-slate-400">{artist.count} plays</p>
+                        <div className="text-xs text-gray-400">
+                          {artist.count} plays
                         </div>
-                        <i className="fas fa-chevron-right text-slate-600 group-hover:text-slate-400 transition"></i>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Compatibility */}
             {stats.compatibility && stats.compatibility.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">
-                  <span className="text-3xl mr-2">🤝</span>
-                  Music Compatibility
+              <section>
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <span>🤝</span> Music Compatibility
                 </h2>
-                <div className="bg-slate-800 rounded-2xl p-6">
-                  <p className="text-slate-400 mb-6">
-                    Find people who share your musical taste
-                  </p>
-                  <div className="space-y-4">
-                    {stats.compatibility.map((match, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-4 bg-slate-900 rounded-xl p-4"
-                      >
-                        <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-xl font-bold">
-                          {match.username.charAt(0).toUpperCase()}
+                <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6 space-y-4">
+                  {stats.compatibility.map((match, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-4 bg-gray-900/50 rounded-xl p-4"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+                        {match.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold mb-1">
+                          @{match.username}
                         </div>
-                        <div className="flex-1">
-                          <div className="font-semibold mb-1">@{match.username}</div>
-                          <div className="w-full bg-slate-700 rounded-full h-2">
-                            <div
-                              className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-1000"
-                              style={{ width: `${match.percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold text-blue-400">
-                          {match.percentage}%
+                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                            style={{ width: `${match.percentage}%` }}
+                          />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="text-lg font-bold text-blue-300">
+                        {match.percentage}%
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Listening by Day */}
             {stats.dayStats && stats.dayStats.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">
-                  <span className="text-3xl mr-2">📅</span>
-                  Weekly Listening Pattern
+              <section>
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <span>📅</span> Weekly Listening Pattern
                 </h2>
-                <div className="bg-slate-800 rounded-2xl p-6">
-                  <div className="flex items-end justify-between gap-2 h-64">
+                <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
+                  <div className="flex items-end justify-between gap-2 h-56">
                     {stats.dayStats.map((day, index) => {
-                      const maxCount = Math.max(...stats.dayStats.map(d => d.count));
-                      const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
+                      const maxCount = Math.max(
+                        ...stats.dayStats.map((d) => d.count),
+                      );
+                      const height =
+                        maxCount > 0 ? (day.count / maxCount) * 100 : 0;
                       return (
-                        <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                          <div className="w-full flex items-end justify-center flex-1">
+                        <div
+                          key={index}
+                          className="flex-1 flex flex-col items-center gap-1 group"
+                        >
+                          <div className="w-full flex items-end justify-center flex-1 relative">
                             <div
-                              className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg hover:from-blue-500 hover:to-blue-300 transition-all cursor-pointer relative group"
+                              className="w-full bg-gradient-to-t from-blue-500 to-purple-400 rounded-t-lg hover:from-blue-400 hover:to-purple-300 transition-all cursor-pointer"
                               style={{ height: `${height}%` }}
                             >
-                              <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 px-2 py-1 rounded text-xs whitespace-nowrap">
-                                {day.count} tracks
+                              <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-xs text-gray-200 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {day.count}
                               </div>
                             </div>
                           </div>
-                          <div className="text-xs text-slate-400 font-medium">{day.day}</div>
+                          <div className="text-xs text-gray-400 font-medium">
+                            {day.day}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              </div>
+              </section>
             )}
-
-            {/* Call to Action */}
-            <div className="bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 rounded-2xl p-8 text-center">
-              <div className="text-5xl mb-4">🎯</div>
-              <h3 className="text-2xl font-bold mb-2">Want More Insights?</h3>
-              <p className="text-slate-300 mb-6">
-                Keep listening to unlock deeper analysis of your music taste
-              </p>
-              <button
-                onClick={() => navigate('/')}
-                className="bg-white text-slate-900 hover:bg-slate-100 px-8 py-3 rounded-full font-semibold transition"
-              >
-                Discover More Music
-              </button>
-            </div>
           </div>
         </main>
       </div>

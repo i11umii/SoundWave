@@ -1,14 +1,66 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { userAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
-import SearchModal from './SearchModal';
 
 const TopNav = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const dropdownRef = useRef(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ tracks: [], artists: [] });
+  const [showResults, setShowResults] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const searchRef = useRef(null);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowResults(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.trim()) {
+        handleSearch();
+      } else {
+        setSearchResults({ tracks: [], artists: [] });
+        setShowResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSearch = async () => {
+    try {
+      const response = await userAPI.search(searchQuery);
+      setSearchResults(response.data.data);
+      setShowResults(true);
+    } catch (error) {
+      console.error('Search error:', error);
+    }
+  };
+
+  const handleTrackClick = (trackId) => {
+    navigate(`/track/${trackId}/timeline`);
+    setShowResults(false);
+    setSearchQuery('');
+  };
+
+  const handleArtistClick = (artistId) => {
+    navigate(`/artist/${artistId}`);
+    setShowResults(false);
+    setSearchQuery('');
+  };
 
   const handleLogout = () => {
     logout();
@@ -16,126 +68,174 @@ const TopNav = () => {
   };
 
   const getInitials = () => {
-    if (user?.username) {
-      return user.username.substring(0, 2).toUpperCase();
-    }
-    return 'U';
+    const name = user?.username || 'SW';
+    return name.substring(0, 2).toUpperCase();
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-    };
-
-    if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showDropdown]);
-
   return (
-    <>
-      <nav className="bg-slate-900 border-b border-slate-800 px-4 md:px-8 py-4">
-        <div className="flex items-center justify-between">
-          {/* Navigation Buttons */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 transition-all"
-            >
-              <i className="fas fa-chevron-left text-slate-400"></i>
-            </button>
-            <button
-              onClick={() => navigate(1)}
-              className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 transition-all"
-            >
-              <i className="fas fa-chevron-right text-slate-400"></i>
-            </button>
+    <header className="bg-gray-900 border-b border-gray-800 px-8 py-4 sticky top-0 z-40">
+      <div className="flex items-center justify-between gap-4">
+        {/* Left spacer */}
+        <div className="w-12"></div>
+
+        {/* Search Bar - centered */}
+        <div ref={searchRef} className="relative w-full max-w-2xl">
+          <div className="relative">
+            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input
+              type="text"
+              placeholder="Search for songs, artists..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-800 text-white pl-12 pr-4 py-3 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
           </div>
 
-          {/* Search Button */}
-          <div className="flex-1 max-w-md mx-8">
-            <button
-              onClick={() => setShowSearch(true)}
-              className="w-full bg-slate-800 text-slate-400 px-4 py-2 rounded-full text-sm text-left hover:bg-slate-700 transition-colors flex items-center gap-3"
-            >
-              <i className="fas fa-search"></i>
-              <span>Search songs, artists, playlists...</span>
-            </button>
-          </div>
+          {/* Search Results Dropdown */}
+          {showResults && (searchResults.tracks.length > 0 || searchResults.artists.length > 0) && (
+            <div className="absolute top-full mt-2 w-full bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto">
+              {searchResults.tracks.length > 0 && (
+                <div className="p-2">
+                  <h3 className="text-xs uppercase text-gray-400 font-semibold px-4 py-2">
+                    Tracks
+                  </h3>
+                  {searchResults.tracks.map((track) => (
+                    <button
+                      key={track._id}
+                      onClick={() => handleTrackClick(track._id)}
+                      className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors text-left"
+                    >
+                      <img
+                        src={track.imageUrl}
+                        alt={track.title}
+                        className="w-12 h-12 rounded object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {track.title}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {track.artist?.name}
+                        </p>
+                      </div>
+                      <span className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">
+                        {track.genre}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          {/* User Menu */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            <button className="hidden sm:block px-4 md:px-6 py-2 rounded-full border border-blue-500/30 text-sm hover:bg-blue-900/30 transition-all">
-              Upgrade
-            </button>
-
-            {/* Avatar with Dropdown */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center hover:scale-105 transition-transform cursor-pointer"
-              >
-                <span className="text-sm font-semibold">{getInitials()}</span>
-              </button>
-
-              {/* Dropdown Menu */}
-              {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-2 z-50">
-                  {/* User Info */}
-                  <div className="px-4 py-3 border-b border-slate-700">
-                    <p className="text-sm font-semibold text-white">{user?.username}</p>
-                    <p className="text-xs text-slate-400">{user?.email}</p>
-                  </div>
-
-                  {/* Menu Items */}
-                  <button
-                    onClick={() => {
-                      navigate('/profile');
-                      setShowDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-3"
-                  >
-                    <i className="fas fa-user w-4"></i>
-                    <span>Profile</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      navigate('/settings');
-                      setShowDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-3"
-                  >
-                    <i className="fas fa-cog w-4"></i>
-                    <span>Settings</span>
-                  </button>
-
-                  <hr className="my-2 border-slate-700" />
-
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-slate-700 transition-colors flex items-center gap-3"
-                  >
-                    <i className="fas fa-sign-out-alt w-4"></i>
-                    <span>Log out</span>
-                  </button>
+              {searchResults.artists.length > 0 && (
+                <div className="p-2 border-t border-gray-700">
+                  <h3 className="text-xs uppercase text-gray-400 font-semibold px-4 py-2">
+                    Artists
+                  </h3>
+                  {searchResults.artists.map((artist) => (
+                    <button
+                      key={artist._id}
+                      onClick={() => handleArtistClick(artist._id)}
+                      className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors text-left"
+                    >
+                      <img
+                        src={artist.imageUrl}
+                        alt={artist.name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {artist.name}
+                        </p>
+                        <p className="text-xs text-gray-400">Artist</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </nav>
+          )}
 
-      {/* Search Modal */}
-      <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />
-    </>
+          {showResults && searchResults.tracks.length === 0 && searchResults.artists.length === 0 && searchQuery.trim() && (
+            <div className="absolute top-full mt-2 w-full bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl p-8 text-center">
+              <i className="fas fa-search text-4xl text-gray-600 mb-3"></i>
+              <p className="text-gray-400">No results found for "{searchQuery}"</p>
+            </div>
+          )}
+        </div>
+
+        {/* Profile Menu - right side */}
+        <div ref={profileRef} className="relative">
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 flex items-center justify-center hover:scale-105 transition-transform neon-glow"
+          >
+            <span className="text-white font-bold text-sm">{getInitials()}</span>
+          </button>
+
+          {/* Profile Dropdown Menu */}
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-gray-700">
+                <p className="text-sm font-semibold text-white truncate">
+                  {user?.username || 'User'}
+                </p>
+                <p className="text-xs text-gray-400 truncate">
+                  {user?.email || 'user@soundwave.com'}
+                </p>
+              </div>
+
+              <div className="p-2">
+                <Link
+                  to="/profile"
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-user w-5 text-gray-400"></i>
+                  <span className="text-sm text-white">Profile</span>
+                </Link>
+
+                <Link
+                  to="/music-dna"
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-dna w-5 text-purple-400"></i>
+                  <span className="text-sm text-white">Music DNA</span>
+                </Link>
+
+                <Link
+                  to="/smart-stats"
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-chart-line w-5 text-blue-400"></i>
+                  <span className="text-sm text-white">Smart Stats</span>
+                </Link>
+
+                <Link
+                  to="/mood-journal"
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-700/50 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-book w-5 text-pink-400"></i>
+                  <span className="text-sm text-white">Mood Journal</span>
+                </Link>
+              </div>
+
+              <div className="p-2 border-t border-gray-700">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                >
+                  <i className="fas fa-sign-out-alt w-5 text-red-400"></i>
+                  <span className="text-sm text-red-400">Logout</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
   );
 };
 
