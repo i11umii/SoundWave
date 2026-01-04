@@ -34,9 +34,8 @@ const artistSchema = new mongoose.Schema({
     type: String
   }],
   albums: [{
-    title: String,
-    releaseYear: Number,
-    coverImage: String
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Album'
   }],
   topTracks: [{
     type: mongoose.Schema.Types.ObjectId,

@@ -9,6 +9,7 @@ import PlaylistPage from './pages/PlaylistPage';
 import PlaylistDetailPage from './pages/PlaylistDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import ArtistPage from './pages/ArtistPage';
+import AlbumPage from './pages/AlbumPage';
 import LikedSongsPage from './pages/LikedSongsPage';
 import RecentlyPlayedPage from './pages/RecentlyPlayedPage';
 
@@ -84,6 +85,9 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="/album/:id" element={
+          <ProtectedRoute><AlbumPage /></ProtectedRoute>
+        } />
         <Route
           path="/liked-songs"
           element={

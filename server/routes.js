@@ -5,6 +5,7 @@ import User from './models/User.js';
 import Track from './models/Track.js';
 import Playlist from './models/Playlist.js';
 import Artist from './models/Artist.js';
+import Album from './models/Album.js';
 import { protect } from './middleware/auth.js';
 
 const router = express.Router();
@@ -116,6 +117,7 @@ router.get('/artists', async (req, res) => {
 router.get('/artists/:id', async (req, res) => {
   try {
     const artist = await Artist.findById(req.params.id)
+      .populate('albums')
       .populate({ path: 'topTracks', populate: { path: 'artist' } })
       .populate('similarArtists');
 
@@ -405,5 +407,25 @@ router.get('/smart-stats', protect, async (req, res) => {
     res.json({ success: true, data: { insights, topArtists, dayStats: Object.entries(dayCount).map(([day, count]) => ({ day, count })) } });
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
+
+// --- ALBUMS ---
+router.get('/albums/:id', async (req, res) => {
+  try {
+    const album = await Album.findById(req.params.id)
+      .populate('artist') // Чтобы показать имя артиста и аватарку
+      .populate({
+        path: 'tracks',
+        populate: { path: 'artist' } // Чтобы у каждого трека тоже был артист
+      });
+
+    if (!album) return res.status(404).json({ message: 'Album not found' });
+
+    res.json({ success: true, data: album });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ message: 'Album not found' });
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 export default router;

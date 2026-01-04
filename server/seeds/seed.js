@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Artist from '../models/Artist.js';
 import Track from '../models/Track.js';
 import Playlist from '../models/Playlist.js';
+import Album from '../models/Album.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ const seedDatabase = async () => {
     await Artist.deleteMany({});
     await Track.deleteMany({});
     await Playlist.deleteMany({});
+    await Album.deleteMany({});
     console.log('🗑️  Cleared existing data');
 
     // ← ХЕШИРУЕМ ПАРОЛЬ!
@@ -33,7 +35,7 @@ const seedDatabase = async () => {
     console.log('👤 Demo user created');
 
     // Создание артистов
-    const artists = await Artist.insertMany([
+    const artistsData = [
       {
         name: 'The Midnight',
         bio: 'American synthwave band blending 80s aesthetics with modern production',
@@ -174,7 +176,50 @@ const seedDatabase = async () => {
           { title: 'Electric Storm', releaseYear: 2019, coverImage: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop' }
         ]
       }
-    ]);
+    ];
+    // --- МАГИЧЕСКИЙ БЛОК НАЧАЛО ---
+    const artists = []; // Этот массив нужен, чтобы код ниже (создание треков) не сломался
+    const allCreatedAlbums = []; // Запоминаем альбомы, чтобы потом найти их для треков
+
+    console.log('🔄 Converting data to new structure...');
+
+    for (const data of artistsData) {
+      // 1. Создаем Артиста (без альбомов пока)
+      const artist = await Artist.create({
+        name: data.name,
+        bio: data.bio,
+        imageUrl: data.imageUrl,
+        coverImage: data.coverImage,
+        verified: data.verified,
+        monthlyListeners: data.monthlyListeners,
+        followers: data.followers,
+        genres: data.genres
+      });
+
+      // 2. Превращаем данные об альбомах в реальные документы Album
+      if (data.albums && data.albums.length > 0) {
+        const albumIds = [];
+        for (const albData of data.albums) {
+          const newAlbum = await Album.create({
+            title: albData.title,
+            artist: artist._id,
+            coverUrl: albData.coverImage, // Мапим поля
+            year: albData.releaseYear,    // Мапим поля
+            genre: artist.genres[0],
+            tracks: []
+          });
+          albumIds.push(newAlbum._id);
+          allCreatedAlbums.push(newAlbum);
+        }
+        // Привязываем созданные альбомы к артисту
+        artist.albums = albumIds;
+        await artist.save();
+      }
+      artists.push(artist);
+    }
+    console.log(`🎤 Created ${artists.length} artists and ${allCreatedAlbums.length} albums`);
+    // --- МАГИЧЕСКИЙ БЛОК КОНЕЦ ---
+
     console.log(`🎤 Created ${artists.length} artists`);
 
     // Создание БОЛЬШОГО количества треков (50+ треков)
@@ -257,6 +302,25 @@ const seedDatabase = async () => {
       { title: 'Epic', artist: artists[9]._id, album: 'Electric Storm', duration: 221, imageUrl: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100&h=100&fit=crop', audioUrl: 'https://www.bensound.com/bensound-music/bensound-epic.mp3', genre: 'Alternative', playCount: 4600000, likes: 210000 }
     ]);
     console.log(`🎵 Created ${tracks.length} tracks with genres and albums`);
+    // --- СВЯЗЫВАНИЕ ТРЕКОВ НАЧАЛО ---
+    console.log('🔗 Linking tracks to albums...');
+    for (const track of tracks) {
+      // Ищем альбом по названию (которое записано в track.album)
+      // Используем массив allCreatedAlbums, который мы наполнили выше
+      const album = allCreatedAlbums.find(a => a.title === track.album);
+
+      if (album) {
+        // 1. Добавляем трек в массив треков альбома
+        album.tracks.push(track._id);
+        await album.save();
+
+        // 2. (Опционально) Если в схеме Track поле album это ObjectId, 
+        // нам нужно обновить сам трек. Но у тебя в старом коде это String.
+        // Если ты обновил модель Track.js на ref: 'Album', раскомментируй строку ниже:
+        // await Track.findByIdAndUpdate(track._id, { album: album._id }); 
+      }
+    }
+    // --- СВЯЗЫВАНИЕ ТРЕКОВ КОНЕЦ ---
 
     // Обновление связей артистов
     await Artist.findByIdAndUpdate(artists[0]._id, {

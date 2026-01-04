@@ -70,5 +70,9 @@ export const userAPI = {
   getMusicDNA: () => api.get('/smart-stats'),
   getSmartStats: () => api.get('/smart-stats'),
 };
+// Добавь объект albumAPI
+export const albumAPI = {
+  getById: (id) => api.get(`/albums/${id}`),
+};
 
 export default api;

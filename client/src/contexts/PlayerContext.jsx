@@ -15,6 +15,9 @@ export const PlayerProvider = ({ children }) => {
 
   // Функция для обновления списка лайков (вызовем при старте приложения)
   const refreshLikedTracks = async () => {
+    // 1. ПРОВЕРКА ТОКЕНА
+    const token = localStorage.getItem('token');
+    if (!token) return; // Если токена нет, выходим
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
@@ -52,6 +55,9 @@ export const PlayerProvider = ({ children }) => {
 
   // 2. ФУНКЦИЯ ЗАГРУЗКИ
   const refreshFollowedArtists = async () => {
+    // 1. ПРОВЕРКА ТОКЕНА
+    const token = localStorage.getItem('token');
+    if (!token) return; // Если токена нет, выходим
     try {
       // Внимание: нужно добавить этот метод в api.js
       const res = await userAPI.getFollowedArtists();
