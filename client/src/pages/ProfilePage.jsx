@@ -7,36 +7,30 @@ import TopNav from '../components/TopNav';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user: authUser, updateUser } = useAuth();
   const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // State for editing
   const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState({
-    username: '',
-    bio: ''
-  });
+  const [editData, setEditData] = useState({ username: '', bio: '' });
+  const [saving, setSaving] = useState(false); // New state for saving spinner
 
   useEffect(() => {
     fetchProfileData();
   }, []);
 
   const fetchProfileData = async () => {
+    setLoading(true);
     try {
-      const [profileRes, statsRes] = await Promise.all([
-        userAPI.getProfile(),
-        userAPI.getStats()
-      ]);
-
-      setProfile(profileRes.data.data);
-      setStats(statsRes.data.data);
-      
-      setEditData({
-        username: profileRes.data.data.username,
-        bio: profileRes.data.data.bio || ''
-      });
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      const res = await userAPI.getProfile();
+      const data = res.data.data;
+      setProfile(data);
+      setEditData({ username: data.username, bio: data.bio || '' });
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError('Unable to load profile data');
     } finally {
       setLoading(false);
     }
@@ -44,282 +38,144 @@ const ProfilePage = () => {
 
   const handleEditProfile = async (e) => {
     e.preventDefault();
+    setSaving(true);
     try {
-      const response = await userAPI.updateProfile(editData);
-      updateUser(response.data.data);
-      setProfile(response.data.data);
+      const res = await userAPI.updateProfile(editData);
+
+      // Обновляем локальный стейт
+      setProfile(prev => ({ ...prev, ...res.data.data }));
+      // Обновляем глобальный стейт (чтобы в шапке имя поменялось)
+      updateUser(res.data.data);
+
       setEditMode(false);
-    } catch (error) {
-      console.error('Error updating profile:', error);
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      alert('Failed to update profile');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getInitials = () => {
-    if (profile?.username) {
-      return profile.username.substring(0, 2).toUpperCase();
-    }
-    return 'U';
-  };
+  const getInitials = () => (profile?.username || 'SW').substring(0, 2).toUpperCase();
+  const getMemberSinceYear = () => profile?.createdAt ? new Date(profile.createdAt).getFullYear() : 2024;
 
-  const getMemberSince = () => {
-    if (profile?.createdAt) {
-      return new Date(profile.createdAt).getFullYear();
-    }
-    return new Date().getFullYear();
-  };
+  if (loading) return <div className="flex h-screen items-center justify-center bg-gray-900"><i className="fas fa-spinner fa-spin text-4xl text-blue-400" /></div>;
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-900">
-        <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
-      </div>
-    );
-  }
+  const stats = profile?.stats || { hoursListened: 0, newArtistsDiscovered: 0, earlyListens: 0, playlistsCount: 0 };
 
   return (
-    <div className="flex h-screen bg-slate-900 text-white overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar />
-
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav />
-
         <main className="flex-1 overflow-y-auto pb-32">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Profile Header */}
-            <div className="bg-gradient-to-r from-blue-900 to-slate-800 rounded-2xl p-6 sm:p-8 mb-8">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
-                <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-4xl font-bold shadow-xl">
-                  {getInitials()}
-                </div>
+          <div className="max-w-5xl mx-auto px-8 py-12">
 
-                <div className="text-center sm:text-left flex-1">
-                  <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-                    {profile?.username}
-                  </h1>
-                  <p className="text-blue-200 mb-4">
-                    {profile?.bio || 'Music enthusiast'} • Member since {getMemberSince()}
-                  </p>
-
-                  <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        {stats?.listeningStats?.totalMinutes || 0}
-                      </div>
-                      <div className="text-slate-300">Minutes Played</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">{stats?.totalPlaylists || 0}</div>
-                      <div className="text-slate-300">Playlists</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">{stats?.totalLikedTracks || 0}</div>
-                      <div className="text-slate-300">Liked Songs</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        {stats?.totalFollowedArtists || 0}
-                      </div>
-                      <div className="text-slate-300">Artists</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setEditMode(true)}
-                    className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    <i className="fas fa-edit mr-2"></i>
-                    Edit Profile
-                  </button>
-                </div>
+            {/* Header */}
+            <div className="flex items-start gap-8 mb-12">
+              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 neon-glow flex items-center justify-center flex-shrink-0">
+                <span className="text-4xl font-bold text-white">{getInitials()}</span>
               </div>
-            </div>
+              <div className="flex-1">
+                <h1 className="text-4xl font-bold mb-3 text-white">{profile?.username}</h1>
 
-            {/* Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* Quick Links */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Link
-                    to="/recently-played"
-                    className="bg-slate-800 rounded-xl p-6 hover:bg-slate-700 transition-colors group"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                        <i className="fas fa-clock text-white text-xl"></i>
-                      </div>
-                      <i className="fas fa-arrow-right text-slate-400 group-hover:text-white group-hover:translate-x-1 transition-all"></i>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-1">Recently Played</h3>
-                    <p className="text-slate-400 text-sm">
-                      {stats?.recentlyPlayedCount || 0} tracks in your history
-                    </p>
-                  </Link>
-
-                  <Link
-                    to="/liked-songs"
-                    className="bg-slate-800 rounded-xl p-6 hover:bg-slate-700 transition-colors group"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                        <i className="fas fa-heart text-white text-xl"></i>
-                      </div>
-                      <i className="fas fa-arrow-right text-slate-400 group-hover:text-white group-hover:translate-x-1 transition-all"></i>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-1">Liked Songs</h3>
-                    <p className="text-slate-400 text-sm">
-                      {stats?.totalLikedTracks || 0} songs you love
-                    </p>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Right Column */}
-              <div className="space-y-8">
-                {/* Listening Stats */}
-                <div className="bg-slate-800 rounded-xl p-6">
-                  <h2 className="text-xl font-semibold mb-6">Listening Stats</h2>
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-slate-300">Total Time</span>
-                        <span className="font-semibold">
-                          {stats?.listeningStats?.totalHours || 0}h {(stats?.listeningStats?.totalMinutes || 0) % 60}m
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-700">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-300">Tracks Played</span>
-                        <span className="font-semibold">{stats?.recentlyPlayedCount || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Music Taste */}
-                {stats?.genrePreferences && stats.genrePreferences.length > 0 && (
-                  <div className="bg-slate-800 rounded-xl p-6">
-                    <h2 className="text-xl font-semibold mb-6">Your Music Taste</h2>
-                    <div className="space-y-4">
-                      {stats.genrePreferences.map((genre, index) => (
-                        <div key={index}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full ${
-                                index === 0 ? 'bg-blue-500' :
-                                index === 1 ? 'bg-green-500' :
-                                index === 2 ? 'bg-purple-500' :
-                                index === 3 ? 'bg-cyan-500' :
-                                'bg-orange-500'
-                              }`}></div>
-                              <span className="text-slate-300">{genre.genre}</span>
-                            </div>
-                            <span className="text-sm font-semibold">{genre.percentage}%</span>
-                          </div>
-                          <div className="w-full bg-slate-700 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all ${
-                                index === 0 ? 'bg-blue-500' :
-                                index === 1 ? 'bg-green-500' :
-                                index === 2 ? 'bg-purple-500' :
-                                index === 3 ? 'bg-cyan-500' :
-                                'bg-orange-500'
-                              }`}
-                              style={{ width: `${genre.percentage}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {stats.earlyListens > 0 && (
+                  <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 neon-glow mb-4">
+                    <i className="fas fa-gem text-white"></i>
+                    <span className="text-white font-semibold text-sm tracking-wide">TRENDSETTER</span>
                   </div>
                 )}
 
-                {/* Account Info */}
-                <div className="bg-slate-800 rounded-xl p-6">
-                  <h2 className="text-xl font-semibold mb-4">Account</h2>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">Status</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        profile?.isPremium 
-                          ? 'bg-blue-500/20 text-blue-400' 
-                          : 'bg-slate-700 text-slate-300'
-                      }`}>
-                        {profile?.isPremium ? 'Premium' : 'Free'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">Email</span>
-                      <span className="text-slate-300">{profile?.email}</span>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-gray-400 text-sm leading-relaxed max-w-2xl mb-4">
+                  {profile?.bio || `Music lover. Member since ${getMemberSinceYear()}.`}
+                </p>
+                <button onClick={() => setEditMode(true)} className="px-6 py-2 rounded-full border border-violet-500 text-violet-400 hover:bg-violet-500 hover:text-white transition-all text-sm font-medium">
+                  <i className="fas fa-edit mr-2" /> Edit Profile
+                </button>
               </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-violet-600 transition-all">
+                <div className="text-3xl font-bold text-violet-400 mb-2">{stats.newArtistsDiscovered}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Artists Discovered</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-fuchsia-600 transition-all">
+                <div className="text-3xl font-bold text-fuchsia-400 mb-2">{stats.hoursListened}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Hours Listened</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-pink-600 transition-all">
+                <div className="text-3xl font-bold text-pink-400 mb-2">{stats.earlyListens}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Trendsetter Badges</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-cyan-600 transition-all">
+                <div className="text-3xl font-bold text-cyan-400 mb-2">{stats.playlistsCount}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Playlists Created</div>
+              </div>
+            </div>
+
+            {/* Quick Links */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Link to="/recently-played" className="card-hover bg-gray-900 border border-gray-800 rounded-xl p-6 group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                    <i className="fas fa-clock text-white text-xl" />
+                  </div>
+                  <i className="fas fa-arrow-right text-gray-500 group-hover:text-gray-200 transition-all" />
+                </div>
+                <h3 className="text-lg font-semibold mb-1">Recently Played</h3>
+                <p className="text-sm text-gray-400">Browse your listening history</p>
+              </Link>
+              <Link to="/liked-songs" className="card-hover bg-gray-900 border border-gray-800 rounded-xl p-6 group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-red-500 rounded-lg flex items-center justify-center">
+                    <i className="fas fa-heart text-white text-xl" />
+                  </div>
+                  <i className="fas fa-arrow-right text-gray-500 group-hover:text-gray-200 transition-all" />
+                </div>
+                <h3 className="text-lg font-semibold mb-1">Liked Songs</h3>
+                <p className="text-sm text-gray-400">All your favorites in one place</p>
+              </Link>
             </div>
           </div>
         </main>
       </div>
 
-      {/* Edit Profile Modal */}
+      {/* Edit Modal */}
       {editMode && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Edit Profile</h2>
-              <button
-                onClick={() => setEditMode(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <i className="fas fa-times text-xl"></i>
-              </button>
-            </div>
-
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
             <form onSubmit={handleEditProfile} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Username
-                </label>
+                <label className="block text-sm text-gray-300 mb-1">Username</label>
                 <input
                   type="text"
-                  value={editData.username}
-                  onChange={(e) =>
-                    setEditData({ ...editData, username: e.target.value })
-                  }
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  required
+                  value={editData.username} 
+                  onChange={(e) => setEditData(p => ({ ...p, username: e.target.value }))}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  required 
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Bio
-                </label>
+                <label className="block text-sm text-gray-300 mb-1">Bio</label>
                 <textarea
-                  value={editData.bio}
-                  onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  rows="3"
-                  placeholder="Tell us about yourself..."
+                  value={editData.bio} 
+                  onChange={(e) => setEditData(p => ({ ...p, bio: e.target.value }))}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  rows="3" 
+                  placeholder="Tell something about yourself..."
                 />
               </div>
-
-              <div className="flex space-x-3 pt-4">
+              <div className="flex space-x-3 pt-2">
+                <button type="button" onClick={() => setEditMode(false)} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors">Cancel</button>
                 <button
-                  type="button"
-                  onClick={() => setEditMode(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                  type="submit" 
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                  Save Changes
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

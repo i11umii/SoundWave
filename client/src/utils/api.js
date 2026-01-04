@@ -9,9 +9,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -20,7 +18,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -36,8 +36,8 @@ export const trackAPI = {
   getAll: () => api.get('/tracks'),
   getById: (id) => api.get(`/tracks/${id}`),
   getRecommendations: () => api.get('/tracks/recommendations'),
-  like: (id) => api.post(`/tracks/${id}/like`),
-  unlike: (id) => api.delete(`/tracks/${id}/like`)
+  like: (id) => api.post(`/users/like/${id}`),
+  unlike: (id) => api.post(`/users/like/${id}`)
 };
 
 export const artistAPI = {
@@ -52,24 +52,23 @@ export const playlistAPI = {
   getById: (id) => api.get(`/playlists/${id}`),
   create: (data) => api.post('/playlists', data),
   delete: (id) => api.delete(`/playlists/${id}`),
-  addTrack: (playlistId, trackId) => api.post(`/playlists/${playlistId}/tracks`, { trackId }),
-  removeTrack: (playlistId, trackId) => api.delete(`/playlists/${playlistId}/tracks/${trackId}`)
+  addTrack: (plId, trId) => api.post(`/playlists/${plId}/tracks`, { trackId: trId }),
+  removeTrack: (plId, trId) => api.delete(`/playlists/${plId}/tracks/${trId}`)
 };
 
 export const userAPI = {
-  getProfile: () => api.get('/users/me'),
+  getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.patch('/users/me', data),
   getRecentlyPlayed: () => api.get('/users/recently-played'),
-  addToRecentlyPlayed: (trackId) => api.post(`/users/recently-played/${trackId}`),
+  addToRecentlyPlayed: (id) => api.post(`/users/recently-played/${id}`),
   getLikedTracks: () => api.get('/users/liked-tracks'),
-  search: (query) => api.get('/users/search', { params: { q: query } }),
+  getFollowedArtists: () => api.get('/users/followed-artists'),
   
-  // NEW ENDPOINTS
-  getMusicDNA: () => api.get('/music-dna'),
+  // FIX: Теперь используем правильный endpoint поиска
+  search: (q) => api.get('/users/search', { params: { q } }),
+
+  getMusicDNA: () => api.get('/smart-stats'),
   getSmartStats: () => api.get('/smart-stats'),
-  setNowPlaying: (trackId, message, mood) => api.post('/now-playing', { trackId, message, mood }),
-  getLiveFeed: () => api.get('/live-feed'),
-  reactToFeed: (feedId, emoji) => api.post(`/live-feed/${feedId}/react`, { emoji })
 };
 
 export default api;

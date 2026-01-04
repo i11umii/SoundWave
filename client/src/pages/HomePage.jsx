@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { trackAPI, artistAPI, playlistAPI } from '../utils/api';
+import { useNavigate } from 'react-router-dom';
+import { trackAPI, playlistAPI, userAPI } from '../utils/api';
 import { usePlayer } from '../contexts/PlayerContext';
+import { formatTime } from '../utils/helpers';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import TrackItem from '../components/TrackItem';
@@ -9,10 +10,10 @@ import TrackItem from '../components/TrackItem';
 const HomePage = () => {
   const navigate = useNavigate();
   const { setCurrentTrack, setPlaylist, play } = usePlayer();
+
+  const [featuredPlaylists, setFeaturedPlaylists] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
-  const [popularTracks, setPopularTracks] = useState([]);
-  const [popularArtists, setPopularArtists] = useState([]);
-  const [recentPlaylists, setRecentPlaylists] = useState([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,192 +22,167 @@ const HomePage = () => {
 
   const fetchHomeData = async () => {
     try {
-      const [recommendationsRes, tracksRes, artistsRes, playlistsRes] = await Promise.all([
+      const [playlistsRes, recsRes, recentRes] = await Promise.all([
+        playlistAPI.getAll().catch(() => ({ data: { data: [] } })),
         trackAPI.getRecommendations().catch(() => ({ data: { data: [] } })),
-        trackAPI.getAll(),
-        artistAPI.getAll(),
-        playlistAPI.getAll()
+        userAPI.getRecentlyPlayed().catch(() => ({ data: { data: [] } })),
       ]);
 
-      setRecommendations(recommendationsRes.data?.data || []);
-      
-      const tracks = tracksRes.data.data.sort((a, b) => b.playCount - a.playCount).slice(0, 6);
-      const artists = artistsRes.data.data.sort((a, b) => b.monthlyListeners - a.monthlyListeners).slice(0, 6);
-      const playlists = playlistsRes.data.data.slice(0, 4);
-
-      setPopularTracks(tracks);
-      setPopularArtists(artists);
-      setRecentPlaylists(playlists);
-    } catch (error) {
-      console.error('Error fetching home data:', error);
+      setFeaturedPlaylists((playlistsRes.data?.data || []).slice(0, 4));
+      setRecommendations(recsRes.data?.data || []);
+      setRecentlyPlayed((recentRes.data?.data || []).slice(0, 5));
+    } catch (err) {
+      console.error('Error fetching home data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePlayTrack = (track, trackList) => {
-    setPlaylist(trackList);
+  const handlePlayTrack = (track, list) => {
+    const playlist = list && list.length ? list : [track];
+    setPlaylist(playlist);
     setCurrentTrack(track);
     play();
   };
 
-  const handleArtistClick = (e, artistId) => {
-    e.stopPropagation();
-    if (artistId) {
-      navigate(`/artist/${artistId}`);
+  const handleStartListening = () => {
+    if (recommendations.length > 0) {
+      handlePlayTrack(recommendations[0], recommendations);
+    } else if (recentlyPlayed.length > 0) {
+      handlePlayTrack(recentlyPlayed[0].track, recentlyPlayed.map(i => i.track));
+    } else {
+      navigate('/tracks');
     }
-  };
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <i className="fas fa-spinner fa-spin text-4xl text-blue-400" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-gray-100">
       <Sidebar />
-
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopNav />
-
-        <main className="flex-1 overflow-y-auto pb-32">
-          <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-            {/* Greeting */}
-            <h1 className="text-3xl sm:text-4xl font-bold mb-8">{getGreeting()}</h1>
-
-            {/* Quick Play Grid */}
-            <div className="mb-12">
-              <h2 className="text-2xl font-bold mb-6">Made For You</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentPlaylists.map((playlist) => (
-                  <Link
-                    key={playlist._id}
-                    to={`/playlists/${playlist._id}`}
-                    className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 rounded-lg overflow-hidden group transition-all"
-                  >
-                    <div className={`w-20 h-20 bg-gradient-to-br from-${playlist.color}-500 to-${playlist.color}-700 flex items-center justify-center flex-shrink-0`}>
-                      <i className={`fas ${playlist.icon} text-white text-2xl`}></i>
-                    </div>
-                    <h3 className="font-semibold truncate flex-1 pr-4">{playlist.name}</h3>
-                    <button className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all mr-4">
-                      <i className="fas fa-play text-white ml-1"></i>
-                    </button>
-                  </Link>
-                ))}
-              </div>
+        <header className="bg-gray-900/50 backdrop-blur-sm border-b border-gray-800 sticky top-0 z-10">
+          <div className="px-8 py-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button onClick={() => window.history.back()} className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-all"><i className="fas fa-chevron-left text-gray-400"></i></button>
+              <button onClick={() => window.history.forward()} className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-all"><i className="fas fa-chevron-right text-gray-400"></i></button>
             </div>
+            <TopNav />
+          </div>
+        </header>
 
-            {/* Recommended For You */}
-            {recommendations.length > 0 && (
-              <div className="mb-12">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-2xl font-bold">Recommended For You</h2>
-                    <p className="text-slate-400 text-sm mt-1">
-                      Based on your listening history
-                    </p>
-                  </div>
+        <main className="flex-1 overflow-auto">
+          <div className="px-8 py-8 pb-32">
+
+            {/* HERO */}
+            <section className="mb-12">
+              <div className="relative rounded-2xl overflow-hidden gradient-blue p-12 h-80 flex items-center shadow-2xl">
+                <div className="absolute inset-0 opacity-30">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500 rounded-full blur-[100px]" />
+                  <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-500 rounded-full blur-[100px]" />
                 </div>
-                <div className="bg-slate-800/30 rounded-xl overflow-hidden">
-                  {recommendations
-                    .filter((track, index, self) => 
-                      index === self.findIndex(t => t._id === track._id)
-                    )
-                    .slice(0, 10)
-                    .map((track, index) => (
+                <div className="relative z-10 max-w-2xl">
+                  <h2 className="text-6xl font-black mb-4 text-white tracking-tight">Discover New Vibes</h2>
+                  <p className="text-xl text-blue-100 mb-8 font-light">
+                    We picked {recommendations.length} tracks just for you.
+                  </p>
+                  <button onClick={handleStartListening} className="px-8 py-4 bg-white text-gray-900 rounded-full font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2">
+                    <i className="fas fa-play" /> Start Listening
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* RECOMMENDED TRACKS (LIST VIEW) */}
+            <section className="mb-12">
+              <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                <i className="fas fa-magic text-purple-400"></i> Recommended for You
+              </h3>
+
+              {recommendations.length > 0 ? (
+                <div className="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden p-2">
+                  {/* Table Header (Optional, looks nice) */}
+                  <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 text-xs text-gray-500 uppercase tracking-wider mb-2">
+                    <div className="col-span-1 text-center">#</div>
+                    <div className="col-span-5">Title</div>
+                    <div className="col-span-3">Album</div>
+                    <div className="col-span-2">Genre</div>
+                    <div className="col-span-1 text-right"><i className="far fa-clock"></i></div>
+                  </div>
+
+                  <div className="space-y-1">
+                    {recommendations.map((track, index) => (
                       <TrackItem
                         key={track._id}
                         track={track}
                         index={index}
                         onPlay={() => handlePlayTrack(track, recommendations)}
                         showAlbum={true}
+                        showArtist={true}
+                        showMenu={true} // Меню с тремя точками будет работать
                       />
-                    ))}
+                      ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-10 text-gray-400 bg-gray-800/30 rounded-xl">
+                  <p>Listen to more music to get recommendations!</p>
+                </div>
+              )}
+            </section>
 
-            {/* Popular Tracks */}
-            <div className="mb-12">
+            {/* FEATURED PLAYLISTS */}
+            <section className="mb-12">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Popular Right Now</h2>
+                <h3 className="text-2xl font-bold text-white">Your Playlists</h3>
+                <button onClick={() => navigate('/playlists')} className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-all">See all</button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {popularTracks.map((track) => (
-                  <div
-                    key={track._id}
-                    className="bg-slate-800/50 hover:bg-slate-800 rounded-lg p-4 cursor-pointer group transition-all"
-                  >
-                    <div 
-                      className="relative mb-4"
-                      onClick={() => handlePlayTrack(track, popularTracks)}
-                    >
-                      <img
-                        src={track.imageUrl}
-                        alt={track.title}
-                        className="w-full aspect-square object-cover rounded-lg"
-                      />
-                      <button className="absolute bottom-2 right-2 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl">
-                        <i className="fas fa-play text-white text-sm ml-1"></i>
-                      </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {featuredPlaylists.map((pl) => (
+                  <div key={pl._id} className="card-hover bg-gray-800/40 rounded-xl p-5 border border-gray-700/50 cursor-pointer" onClick={() => navigate(`/playlists/${pl._id}`)}>
+                    <div className={`w-full aspect-square rounded-lg mb-4 flex items-center justify-center bg-gradient-to-br from-${pl.color}-500 to-${pl.color}-700`}>
+                      <i className={`fas ${pl.icon} text-white text-4xl`} />
                     </div>
-                    <h3 
-                      className="font-semibold mb-1 truncate cursor-pointer"
-                      onClick={() => handlePlayTrack(track, popularTracks)}
-                    >
-                      {track.title}
-                    </h3>
-                    {track.artist && (
-                      <button
-                        onClick={(e) => handleArtistClick(e, track.artist._id)}
-                        className="text-sm text-slate-400 truncate hover:text-white hover:underline transition-colors text-left w-full"
-                      >
-                        {track.artist.name}
-                      </button>
-                    )}
+                    <h4 className="font-bold text-white mb-1 truncate">{pl.name}</h4>
+                    <p className="text-xs text-gray-400 truncate">{pl.tracks.length} tracks</p>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
-            {/* Popular Artists */}
-            <div className="mb-12">
+            {/* RECENTLY PLAYED */}
+            <section className="mb-12">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Popular Artists</h2>
+                <h3 className="text-2xl font-bold text-white">Jump Back In</h3>
+                <button onClick={() => navigate('/recently-played')} className="text-sm font-medium text-purple-400 hover:text-purple-300 transition-all">History</button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {popularArtists.map((artist) => (
-                  <div
-                    key={artist._id}
-                    onClick={(e) => handleArtistClick(e, artist._id)}
-                    className="bg-slate-800/50 hover:bg-slate-800 rounded-lg p-4 cursor-pointer group transition-all text-center"
-                  >
-                    <div className="relative mb-4">
-                      <img
-                        src={artist.imageUrl}
-                        alt={artist.name}
-                        className="w-full aspect-square object-cover rounded-full"
+              <div className="space-y-1">
+                {recentlyPlayed.map((item, idx) => {
+                    const track = item.track;
+                  if (!track) return null;
+                    return (
+                      <TrackItem
+                        key={`${track._id}-${idx}`}
+                        track={track}
+                        index={idx}
+                        onPlay={() => handlePlayTrack(track)}
+                        showMenu={true}
                       />
-                    </div>
-                    <h3 className="font-semibold mb-1 truncate">{artist.name}</h3>
-                    <p className="text-sm text-slate-400">Artist</p>
-                  </div>
-                ))}
+                    );
+                })}
               </div>
-            </div>
+            </section>
+
           </div>
         </main>
       </div>
+      <style>{`.gradient-blue { background: linear-gradient(135deg, #1e3a8a 0%, #7e22ce 100%); }`}</style>
     </div>
   );
 };

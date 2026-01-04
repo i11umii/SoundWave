@@ -26,12 +26,22 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // Music DNA - statystyki uzytkownika
   musicDNA: {
     personality: { type: String, default: 'Casual Listener' },
     listeningTime: { type: String, default: 'Day Listener' },
     topMood: { type: String, default: 'Chill' },
     earlyAdopter: { type: Boolean, default: false }
   },
+  // === NEW: Gamification Badges ===
+  badges: [{
+    id: String,         // np. 'EARLY_ADOPTER'
+    name: String,       // 'Trendsetter'
+    icon: String,       // '🚀'
+    description: String,
+    earnedAt: { type: Date, default: Date.now }
+  }],
+  // ================================
   friends: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -59,7 +69,6 @@ const userSchema = new mongoose.Schema({
     },
     mood: {
       type: String,
-      enum: ['happy', 'sad', 'energetic', 'chill', 'focused', 'party', ''],
       default: ''
     }
   }]

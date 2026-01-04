@@ -1,97 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userAPI } from '../utils/api';
-import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 
 const MusicDNAPage = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const [dna, setDna] = useState(null);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [dnaProfile, setDnaProfile] = useState(null);
 
   useEffect(() => {
-    fetchMusicDNA();
+    const fetchData = async () => {
+      try {
+        const response = await userAPI.getSmartStats();
+        const data = response.data.data;
+        setStats(data);
+        calculateDNA(data);
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
-  const fetchMusicDNA = async () => {
-    try {
-      const response = await userAPI.getMusicDNA();
-      setDna(response.data.data);
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const calculateDNA = (data) => {
+    if (!data || !data.dayStats) return;
 
-  const getPersonalityEmoji = (personality) => {
-    const map = {
-      'Casual Listener': '🎧',
-      'Music Enthusiast': '🎵',
-      'Music Addict': '🔥',
-      'Collector': '💎'
-    };
-    return map[personality] || '🎧';
-  };
+    // 1. Peak Day
+    const peakDayObj = data.dayStats.reduce((prev, current) =>
+      (prev.count > current.count) ? prev : current
+      , { day: 'Monday', count: 0 });
 
-  const getTimeEmoji = (time) => {
-    const map = {
-      'Morning Person': '☀️',
-      'Afternoon Listener': '🌤️',
-      'Night Owl': '🌙',
-      'Midnight Listener': '🌃'
-    };
-    return map[time] || '🎵';
-  };
+    // 2. Personality Archetype
+    let personality = "Casual Listener";
+    const totalPlays = data.dayStats.reduce((acc, curr) => acc + curr.count, 0);
+    const uniqueArtists = data.topArtists.length;
 
-  const getMoodEmoji = (mood) => {
-    const map = {
-      'happy': '😊',
-      'sad': '😔',
-      'energetic': '⚡',
-      'chill': '😌',
-      'focused': '🎯',
-      'party': '🎉',
-      'Chill': '😌'
-    };
-    return map[mood] || '🎵';
-  };
+    if (totalPlays > 50 && uniqueArtists > 5) personality = "The Explorer";
+    else if (totalPlays > 100) personality = "The Obsessed";
+    else if (uniqueArtists < 3 && totalPlays > 20) personality = "The Loyalist";
 
-  const shareMusicDNA = () => {
-    const text = `🧬 My Music DNA\n\n${getPersonalityEmoji(dna.personality)} ${dna.personality}\n${getTimeEmoji(dna.listeningTime)} ${dna.listeningTime}\n${getMoodEmoji(dna.topMood)} Top Mood: ${dna.topMood} ${dna.topMoodPercentage}%\n\nCheck out SoundWave!`;
-    
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setDnaProfile({
+      personality,
+      peakDay: peakDayObj.day,
+      totalPlays,
+      vibe: "Eclectic Soul"
+    });
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <i className="fas fa-spinner fa-spin text-4xl text-blue-400" />
       </div>
     );
   }
 
-  if (!dna || dna.totalTracks === 0) {
+  // Check if data is empty
+  if (!stats || !stats.topArtists || stats.topArtists.length === 0) {
     return (
-      <div className="flex h-screen bg-slate-950 text-slate-100">
+      <div className="flex h-screen bg-gray-900 text-gray-100">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopNav />
           <main className="flex-1 flex items-center justify-center pb-32">
             <div className="text-center px-4">
               <div className="text-6xl mb-6">🧬</div>
-              <h2 className="text-3xl font-bold mb-4">Build Your Music DNA</h2>
-              <p className="text-slate-400 mb-8 max-w-md mx-auto">
-                Start listening to music to generate your unique Music DNA profile
+              <h2 className="text-3xl font-bold mb-3">Build Your Music DNA</h2>
+              <p className="text-gray-400 mb-6 max-w-md mx-auto text-sm">
+                Start listening to generate your unique profile.
               </p>
               <button
                 onClick={() => navigate('/')}
-                className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-full font-semibold transition"
+                className="px-8 py-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-sm font-semibold hover:from-blue-600 hover:to-purple-600 transition-all shadow-lg"
               >
                 Start Listening
               </button>
@@ -103,151 +87,89 @@ const MusicDNAPage = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar />
-
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav />
+        <main className="flex-1 overflow-y-auto pb-32 px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-5xl mx-auto">
+            <header className="text-center mb-10">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center neon-glow">
+                  <span className="text-2xl">🧬</span>
+                </div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  Your Music DNA
+                </h1>
+              </div>
+              <p className="text-gray-400 text-sm">Analyzed from {dnaProfile?.totalPlays} plays</p>
+            </header>
 
-        <main className="flex-1 overflow-y-auto pb-32">
-          <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-            {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-2">Your Music DNA</h1>
-              <p className="text-slate-400">Your unique musical identity</p>
-            </div>
+            {/* DNA CARDS */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+              <div className="bg-gradient-to-br from-indigo-900 to-blue-900 rounded-2xl p-6 border border-blue-500/30 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-20 text-6xl">🧘</div>
+                <h3 className="text-blue-300 text-sm font-semibold uppercase tracking-wider mb-2">Archetype</h3>
+                <div className="text-3xl font-bold text-white mb-2">{dnaProfile?.personality}</div>
+                <p className="text-blue-200/70 text-xs">Based on listening variety.</p>
+                </div>
+              <div className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl p-6 border border-pink-500/30 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-20 text-6xl">⚡</div>
+                <h3 className="text-pink-300 text-sm font-semibold uppercase tracking-wider mb-2">Peak Energy</h3>
+                <div className="text-3xl font-bold text-white mb-2">{dnaProfile?.peakDay}</div>
+                <p className="text-pink-200/70 text-xs">Your active day.</p>
+              </div>
+              <div className="bg-gradient-to-br from-emerald-900 to-teal-900 rounded-2xl p-6 border border-emerald-500/30 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-20 text-6xl">🌊</div>
+                <h3 className="text-emerald-300 text-sm font-semibold uppercase tracking-wider mb-2">Vibe</h3>
+                <div className="text-3xl font-bold text-white mb-2">{dnaProfile?.vibe}</div>
+                <p className="text-emerald-200/70 text-xs">Sonic signature.</p>
+              </div>
+            </section>
 
-            {/* Music DNA Card */}
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 rounded-3xl p-8 mb-8 relative overflow-hidden">
-                {/* Decorative elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full blur-3xl opacity-20"></div>
-                
-                <div className="relative">
-                  {/* Header */}
-                  <div className="text-center mb-8">
-                    <div className="text-7xl mb-4">🧬</div>
-                    <h2 className="text-2xl font-bold mb-1">@{user?.username}'s Music DNA</h2>
-                    <p className="text-slate-300 text-sm">Musical Identity Card</p>
-                  </div>
-
-                  {/* DNA Info */}
-                  <div className="space-y-6 mb-8">
-                    {/* Personality */}
-                    <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl p-6">
+            {/* GRAPHS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <i className="fas fa-microphone text-blue-400"></i> Top Artists
+                    </h3>
+                <div className="space-y-4">
+                  {stats.topArtists.map((artist, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-lg transition-colors">
                       <div className="flex items-center gap-4">
-                        <div className="text-5xl">{getPersonalityEmoji(dna.personality)}</div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold mb-1">{dna.personality}</h3>
-                          <p className="text-sm text-slate-300">Your listening style</p>
-                        </div>
+                        <span className={`text-lg font-bold w-6 text-center ${idx === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-medium text-white">{artist.name}</span>
                       </div>
-                    </div>
-
-                    {/* Time */}
-                    <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="text-5xl">{getTimeEmoji(dna.listeningTime)}</div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold mb-1">{dna.listeningTime}</h3>
-                          <p className="text-sm text-slate-300">Peak activity at {dna.peakHour}:00</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Mood */}
-                    <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="text-5xl">{getMoodEmoji(dna.topMood)}</div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold mb-1">Top Mood: {dna.topMood}</h3>
-                          <div className="mt-2">
-                            <div className="w-full bg-slate-700 rounded-full h-2">
-                              <div 
-                                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full"
-                                style={{ width: `${dna.topMoodPercentage}%` }}
-                              />
-                            </div>
-                            <p className="text-sm text-slate-300 mt-1">{dna.topMoodPercentage}% of your music</p>
+                            <span className="text-xs bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full">
+                              {artist.count} plays
+                            </span>
                           </div>
-                        </div>
-                      </div>
-                    </div>
+                        ))}
+                </div>
+                </div>
 
-                    {/* Early Adopter Badge */}
-                    {dna.earlyAdopter && (
-                      <div className="bg-gradient-to-r from-yellow-900/50 to-orange-900/50 backdrop-blur-sm rounded-2xl p-6 border border-yellow-500/30">
-                        <div className="flex items-center gap-4">
-                          <div className="text-5xl">🌟</div>
-                          <div className="flex-1">
-                            <h3 className="text-xl font-bold mb-1">Early Adopter</h3>
-                            <p className="text-sm text-slate-300">You discover artists before they're mainstream</p>
-                          </div>
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 flex flex-col">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-purple-400"></i> Rhythm
+                </h3>
+                <div className="flex-1 flex items-end justify-between gap-2 min-h-[200px]">
+                  {stats.dayStats.map((day, idx) => {
+                    const max = Math.max(...stats.dayStats.map(d => d.count)) || 1;
+                    const height = (day.count / max) * 100;
+                    return (
+                      <div key={idx} className="flex flex-col items-center flex-1 group">
+                        <div className="w-full relative flex items-end justify-center h-48 bg-gray-700/30 rounded-t-lg overflow-hidden">
+                          <div
+                            className="w-full bg-gradient-to-t from-blue-500 to-purple-500 hover:from-blue-400 hover:to-purple-400 transition-all duration-500"
+                            style={{ height: `${Math.max(height, 5)}%` }}
+                          ></div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Top Genres */}
-                    {dna.topGenres && dna.topGenres.length > 0 && (
-                      <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl p-6">
-                        <h4 className="font-semibold mb-4 flex items-center gap-2">
-                          <span className="text-2xl">🎸</span>
-                          Top Genres
-                        </h4>
-                        <div className="space-y-3">
-                          {dna.topGenres.map((genre, index) => (
-                            <div key={index}>
-                              <div className="flex justify-between text-sm mb-1">
-                                <span>{genre.genre}</span>
-                                <span className="text-slate-400">{genre.percentage}%</span>
+                                <span className="text-xs text-gray-400 mt-2 font-medium">{day.day.substring(0, 3)}</span>
                               </div>
-                              <div className="w-full bg-slate-700 rounded-full h-2">
-                                <div
-                                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
-                                  style={{ width: `${genre.percentage}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-400">{dna.totalTracks}</div>
-                        <div className="text-xs text-slate-400 mt-1">Tracks</div>
-                      </div>
-                      <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl p-4 text-center">
-                        <div className="text-2xl font-bold text-purple-400">{dna.likedTracks}</div>
-                        <div className="text-xs text-slate-400 mt-1">Liked</div>
-                      </div>
-                      <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl p-4 text-center">
-                        <div className="text-2xl font-bold text-pink-400">{dna.followedArtists}</div>
-                        <div className="text-xs text-slate-400 mt-1">Artists</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Share Button */}
-                  <button
-                    onClick={shareMusicDNA}
-                    className="w-full bg-white text-slate-900 hover:bg-slate-100 py-4 rounded-2xl font-semibold transition flex items-center justify-center gap-2"
-                  >
-                    {copied ? (
-                      <>
-                        <i className="fas fa-check"></i>
-                        Copied to Clipboard!
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-share-alt"></i>
-                        Share Your Music DNA
-                      </>
-                    )}
-                  </button>
+                          )
+                        })}
                 </div>
               </div>
             </div>
