@@ -3,20 +3,30 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-console.log('🔌 Testing MongoDB connection...\n');
+async function testDb() {
+  console.log('[test-db] вход');
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('✅ Successfully connected to MongoDB!');
-    console.log(`📊 Database: ${mongoose.connection.db.databaseName}`);
-    console.log(`🏠 Host: ${mongoose.connection.host}`);
-    return mongoose.connection.close();
-  })
-  .then(() => {
-    console.log('\n👋 Connection closed');
+  try {
+    console.log('[test-db] подключаемся к MongoDB');
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('[test-db] подключение успешно');
+
+    const dbName = mongoose.connection.db.databaseName;
+    const host = mongoose.connection.host;
+
+    console.log('[test-db] database =', dbName);
+    console.log('[test-db] host =', host);
+
+    console.log('[test-db] закрываем соединение');
+    await mongoose.connection.close();
+
+    console.log('[test-db] готово');
     process.exit(0);
-  })
-  .catch((error) => {
-    console.error('❌ Connection failed:', error.message);
+  } catch (error) {
+    console.log('[test-db] ошибка');
+    console.log(error);
     process.exit(1);
-  });
+  }
+}
+
+testDb();

@@ -1,121 +1,258 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { userAPI } from '../utils/api'; // Импортируем API
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { userAPI } from '../utils/api';
 
 const PlayerContext = createContext();
 
-export const usePlayer = () => useContext(PlayerContext);
+export function usePlayer() {
+  return useContext(PlayerContext);
+}
 
-export const PlayerProvider = ({ children }) => {
+export function PlayerProvider(props) {
+  const children = props.children;
+
   const [currentTrack, setCurrentTrack] = useState(null);
   const [playlist, setPlaylist] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // --- НОВОЕ: ГЛОБАЛЬНЫЙ СПИСОК ЛАЙКОВ ---
-  const [likedTrackIds, setLikedTrackIds] = useState([]); 
-
-  // Функция для обновления списка лайков (вызовем при старте приложения)
-  const refreshLikedTracks = async () => {
-    // 1. ПРОВЕРКА ТОКЕНА
-    const token = localStorage.getItem('token');
-    if (!token) return; // Если токена нет, выходим
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const res = await userAPI.getLikedTracks();
-      // Сохраняем ТОЛЬКО ID и приводим всё к строкам для надежности
-      setLikedTrackIds(res.data.data.map(t => t._id.toString()));
-    } catch (err) {
-      console.error("Error fetching liked tracks:", err);
-    }
-  };
-
-  // Загружаем лайки при первом запуске
-  useEffect(() => {
-    refreshLikedTracks();
-  }, []);
-
-  // Хелпер: проверить, лайкнут ли трек (безопасное сравнение)
-  const isTrackLiked = (trackId) => {
-    return likedTrackIds.includes(trackId?.toString());
-  };
-
-  // Хелпер: переключить лайк (обновляет локальный список мгновенно)
-  const toggleLikeLocally = (trackId) => {
-    const id = trackId.toString();
-    setLikedTrackIds(prev =>
-      prev.includes(id)
-        ? prev.filter(lid => lid !== id) // Убрать
-        : [...prev, id] // Добавить
-    );
-  };
-  // ----------------------------------------
-
-  // 1. STATE ДЛЯ АРТИСТОВ
+  const [likedTrackIds, setLikedTrackIds] = useState([]);
   const [followedArtistIds, setFollowedArtistIds] = useState([]);
+  const lastHistoryTrackIdRef = useRef(null);
 
-  // 2. ФУНКЦИЯ ЗАГРУЗКИ
-  const refreshFollowedArtists = async () => {
-    // 1. ПРОВЕРКА ТОКЕНА
+
+  async function refreshLikedTracks() {
+    console.log('PlayerContext: refreshLikedTracks');
+
     const token = localStorage.getItem('token');
-    if (!token) return; // Если токена нет, выходим
-    try {
-      // Внимание: нужно добавить этот метод в api.js
-      const res = await userAPI.getFollowedArtists();
-      setFollowedArtistIds(res.data.data.map(a => a._id.toString()));
-    } catch (err) {
-      console.error("Error fetching followed artists", err);
+    if (!token) {
+      setLikedTrackIds([]);
+      return;
     }
-  };
 
-  // 3. ЗАГРУЖАЕМ ПРИ СТАРТЕ (вместе с лайками)
+    try {
+      const res = await userAPI.getLikedTracks();
+
+      let tracks = [];
+      if (res && res.data && res.data.data) {
+        tracks = res.data.data;
+      }
+
+      // берём только id треков
+      const ids = tracks.map((t) => t._id);
+
+      setLikedTrackIds(ids);
+      console.log('PlayerContext: likedTrackIds loaded', ids.length);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async function refreshFollowedArtists() {
+    console.log('PlayerContext: refreshFollowedArtists');
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setFollowedArtistIds([]);
+      return;
+    }
+
+    try {
+      const res = await userAPI.getFollowedArtists();
+
+      let artists = [];
+      if (res && res.data && res.data.data) {
+        artists = res.data.data;
+      }
+
+      // берём только id артистов
+      const ids = artists.map((a) => a._id);
+
+      setFollowedArtistIds(ids);
+      console.log('PlayerContext: followedArtistIds loaded', ids.length);
+    } catch (error) {
+      console.log(error);
+    }
+  }
   useEffect(() => {
+    const trackId = currentTrack ? currentTrack._id : null;
+    if (!trackId) {
+      return;
+    }
+
+    // если это тот же трек, второй раз не пишем
+    if (lastHistoryTrackIdRef.current === trackId) {
+      return;
+    }
+
+    lastHistoryTrackIdRef.current = trackId;
+
+    console.log('PlayerContext: add to recently played', trackId);
+
+    const run = async () => {
+      try {
+        await userAPI.addRecentlyPlayed(trackId);
+        console.log('PlayerContext: recently played updated');
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    run();
+  }, [currentTrack ? currentTrack._id : null]);
+
+
+  useEffect(() => {
+    console.log('PlayerContext: mount');
     refreshLikedTracks();
-    refreshFollowedArtists(); // <--- Добавили
+    refreshFollowedArtists();
   }, []);
 
-  // 4. ХЕЛПЕРЫ
-  const isArtistFollowed = (artistId) => {
-    return followedArtistIds.includes(artistId?.toString());
-  };
+  function isTrackLiked(trackId) {
+    if (!trackId) {
+      return false;
+    }
 
-  const toggleFollowLocally = (artistId) => {
-    const id = artistId.toString();
-    setFollowedArtistIds(prev =>
-      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
-    );
-  };
+    const id = trackId.toString();
 
-  const play = (track) => {
-    if (track) {
-      setCurrentTrack(track);
-      if (!playlist.find(t => t._id === track._id)) {
-        setPlaylist([track, ...playlist]);
+    for (let i = 0; i < likedTrackIds.length; i += 1) {
+      if (likedTrackIds[i] === id) {
+        return true;
       }
     }
+
+    return false;
+  }
+
+  function toggleLikeLocally(trackId) {
+    if (!trackId) {
+      return;
+    }
+
+    const id = trackId.toString();
+
+    setLikedTrackIds(function (prev) {
+      const next = [];
+      let found = false;
+
+      for (let i = 0; i < prev.length; i += 1) {
+        if (prev[i] === id) {
+          found = true;
+        } else {
+          next.push(prev[i]);
+        }
+      }
+
+      if (!found) {
+        next.push(id);
+      }
+
+      return next;
+    });
+  }
+
+  function isArtistFollowed(artistId) {
+    if (!artistId) {
+      return false;
+    }
+
+    const id = artistId.toString();
+
+    for (let i = 0; i < followedArtistIds.length; i += 1) {
+      if (followedArtistIds[i] === id) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function toggleFollowLocally(artistId) {
+    if (!artistId) {
+      return;
+    }
+
+    const id = artistId.toString();
+
+    setFollowedArtistIds(function (prev) {
+      const next = [];
+      let found = false;
+
+      for (let i = 0; i < prev.length; i += 1) {
+        if (prev[i] === id) {
+          found = true;
+        } else {
+          next.push(prev[i]);
+        }
+      }
+
+      if (!found) {
+        next.push(id);
+      }
+
+      return next;
+    });
+  }
+
+  function play(track) {
+    console.log('PlayerContext: play', track ? track._id : null);
+
+    // включаем воспроизведение (даже если трек уже выбран где-то выше)
     setIsPlaying(true);
+
+    if (!track) {
+      return;
+    }
+
+    setCurrentTrack(track);
+
+    setPlaylist(function (prevPlaylist) {
+      const safePlaylist = Array.isArray(prevPlaylist) ? prevPlaylist : [];
+
+      let alreadyInPlaylist = false;
+      for (let i = 0; i < safePlaylist.length; i += 1) {
+        const t = safePlaylist[i];
+        if (t && t._id && track._id && t._id === track._id) {
+          alreadyInPlaylist = true;
+        }
+      }
+
+      if (alreadyInPlaylist) {
+        return safePlaylist;
+      }
+
+      const next = [];
+      next.push(track);
+      for (let i = 0; i < safePlaylist.length; i += 1) {
+        next.push(safePlaylist[i]);
+      }
+
+      return next;
+    });
+  }
+
+  function pause() {
+    console.log('PlayerContext: pause');
+    setIsPlaying(false);
+  }
+
+  const value = {
+    currentTrack: currentTrack,
+    playlist: playlist,
+    isPlaying: isPlaying,
+    setPlaylist: setPlaylist,
+    setCurrentTrack: setCurrentTrack,
+    play: play,
+    pause: pause,
+
+    likedTrackIds: likedTrackIds,
+    refreshLikedTracks: refreshLikedTracks,
+    isTrackLiked: isTrackLiked,
+    toggleLikeLocally: toggleLikeLocally,
+
+    followedArtistIds: followedArtistIds,
+    refreshFollowedArtists: refreshFollowedArtists,
+    isArtistFollowed: isArtistFollowed,
+    toggleFollowLocally: toggleFollowLocally,
   };
 
-  const pause = () => setIsPlaying(false);
-
-  return (
-    <PlayerContext.Provider value={{
-      currentTrack,
-      playlist,
-      isPlaying,
-      setPlaylist,
-      setCurrentTrack,
-      play,
-      pause,
-      // Экспортируем новые функции
-      likedTrackIds,
-      refreshLikedTracks,
-      isTrackLiked,
-      toggleLikeLocally,
-      isArtistFollowed,
-      toggleFollowLocally,
-      refreshFollowedArtists,
-    }}>
-      {children}
-    </PlayerContext.Provider>
-  );
-};
+  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+}

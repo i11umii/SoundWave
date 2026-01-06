@@ -5,35 +5,38 @@ import User from './models/User.js';
 
 dotenv.config();
 
-const clearAndCreate = async () => {
+async function clearAndCreate() {
+  console.log('[clear_and_create] вход');
+
   try {
+    console.log('[clear_and_create] подключаемся к MongoDB');
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
+    console.log('[clear_and_create] MongoDB подключена');
 
-    // Удаляем всех пользователей
+    // Очищаем коллекцию пользователей
     await User.deleteMany({});
-    console.log('✅ All users deleted');
+    console.log('[clear_and_create] все пользователи удалены');
 
-    // Создаём нового демо юзера
+    // Создаем демо-пользователя
     const hashedPassword = await bcrypt.hash('demo123', 10);
-    
+
     const user = await User.create({
       username: 'demo',
       email: 'demo@soundwave.com',
       password: hashedPassword
     });
 
-    console.log('\n=================================');
-    console.log('✅ Demo user created!');
-    console.log('📧 Email: demo@soundwave.com');
-    console.log('🔑 Password: demo123');
-    console.log('=================================\n');
+    console.log('[clear_and_create] демо-пользователь создан');
+    console.log('[clear_and_create] id =', user._id.toString());
+    console.log('[clear_and_create] email = demo@soundwave.com');
+    console.log('[clear_and_create] password = demo123');
 
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.log('[clear_and_create] ошибка');
+    console.log(error);
     process.exit(1);
   }
-};
+}
 
 clearAndCreate();

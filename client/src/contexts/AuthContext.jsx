@@ -1,63 +1,89 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { authAPI } from '../utils/api';
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider(props) {
+  const children = props.children;
+
+  // берем токен из localStorage, чтобы не выкидывать пользователя после перезагрузки
+  const tokenFromStorage = localStorage.getItem('token');
+
+  let initialIsAuthenticated = false;
+  if (tokenFromStorage) {
+    initialIsAuthenticated = true;
+  }
+
+  const [token, setToken] = useState(tokenFromStorage);
+  const [isAuthenticated, setIsAuthenticated] = useState(initialIsAuthenticated);
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
+
+  async function fetchMe() {
+    console.log('AuthContext: fetchMe start');
+
+    try {
+      const response = await authAPI.getMe();
+
+      let me = null;
+      if (response && response.data && response.data.data) {
+        me = response.data.data;
+      }
+
+      setUser(me);
+      console.log('AuthContext: fetchMe success', me ? me._id : null);
+    } catch (error) {
+      console.log(error);
+      setUser(null);
+    }
+  }
 
   useEffect(() => {
-    // Загружаем пользователя при старте
+    console.log('AuthContext: token changed', token ? 'HAS_TOKEN' : 'NO_TOKEN');
+
     if (token) {
-      fetchUser();
+      fetchMe();
+    } else {
+      setUser(null);
     }
   }, [token]);
 
-  const fetchUser = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setUser(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
-  };
+  function login(newToken, newUser) {
+    console.log('AuthContext: login');
 
-  const login = (newToken, newUser) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
+
     setUser(newUser);
     setIsAuthenticated(true);
-  };
+  }
 
-  const logout = () => {
+  function logout() {
+    console.log('AuthContext: logout');
+
     localStorage.removeItem('token');
     setToken(null);
+
     setUser(null);
     setIsAuthenticated(false);
-  };
+  }
 
-  const updateUser = (updatedUser) => {
+  function updateUser(updatedUser) {
+    console.log('AuthContext: updateUser');
     setUser(updatedUser);
+  }
+
+  const value = {
+    user: user,
+    token: token,
+    isAuthenticated: isAuthenticated,
+    login: login,
+    logout: logout,
+    updateUser: updateUser,
   };
 
-  return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      isAuthenticated,
-      login,
-      logout,
-      updateUser
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

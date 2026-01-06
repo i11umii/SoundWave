@@ -2,36 +2,54 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 export const protect = async (req, res, next) => {
-  try {
-    let token;
+  console.log('[auth] protect: вход');
 
-    // Проверяем наличие токена в заголовке
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+  try {
+    let token = null;
+
+    // Берем токен из заголовка Authorization: Bearer <token>
+    const authorizationHeader = req.headers.authorization;
+
+    if (authorizationHeader) {
+      const startsWithBearer = authorizationHeader.startsWith('Bearer ');
+
+      if (startsWithBearer) {
+        const parts = authorizationHeader.split(' ');
+        token = parts[1];
+      }
     }
 
     if (!token) {
+      console.log('[auth] protect: токен не найден');
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this route'
       });
     }
 
-    // Верифицируем токен
+    console.log('[auth] protect: проверяем токен');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Получаем пользователя из БД
-    req.user = await User.findById(decoded.id).select('-password');
+    console.log('[auth] protect: ищем пользователя по id');
+    const user = await User.findById(decoded.id).select('-password');
 
-    if (!req.user) {
+    if (!user) {
+      console.log('[auth] protect: пользователь не найден');
       return res.status(401).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    next();
+    // Кладем пользователя в req, чтобы дальше его использовать в роуте
+    req.user = user;
+
+    console.log('[auth] protect: доступ разрешен');
+    return next();
   } catch (error) {
+    console.log('[auth] protect: ошибка');
+    console.log(error);
+
     return res.status(401).json({
       success: false,
       message: 'Not authorized to access this route'

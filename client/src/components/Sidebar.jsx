@@ -6,6 +6,7 @@ const Sidebar = () => {
 
   const menuItems = [
     { path: '/', icon: 'fa-home', label: 'Home' },
+    { path: '/tracks', icon: 'fa-music', label: 'Tracks' },
     { path: '/playlists', icon: 'fa-list', label: 'Playlists' },
     { path: '/liked-songs', icon: 'fa-heart', label: 'Liked Songs' },
     { path: '/recently-played', icon: 'fa-clock', label: 'Recent' },

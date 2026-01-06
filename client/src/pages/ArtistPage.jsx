@@ -1,229 +1,338 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { artistAPI } from '../utils/api';
 import { usePlayer } from '../contexts/PlayerContext';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import TrackItem from '../components/TrackItem';
+import { formatNumber } from '../utils/helpers'
 
 const ArtistPage = () => {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params.id;
   const navigate = useNavigate();
+
+  const player = usePlayer();
+
   const [artist, setArtist] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const {
-    play,
-    setCurrentTrack,
-    setPlaylist,
-    isArtistFollowed,
-    toggleFollowLocally
-  } = usePlayer();
-
   useEffect(() => {
-    const fetchArtist = async () => {
-      setLoading(true);
-      try {
-        const res = await artistAPI.getById(id);
-        setArtist(res.data.data);
-      } catch (err) {
-        console.error("Failed to load artist", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    console.log('ArtistPage: mount / id changed', id);
     fetchArtist();
   }, [id]);
 
-  const handlePlay = () => {
-    if (artist && artist.tracks && artist.tracks.length > 0) {
-      setPlaylist(artist.tracks);
-      setCurrentTrack(artist.tracks[0]);
-      play();
-    }
-  };
+  const fetchArtist = async () => {
+    console.log('ArtistPage: fetchArtist start', id);
 
-  const handleFollow = async () => {
-    if (!artist) return;
-    const isFollowing = isArtistFollowed(artist._id);
-    toggleFollowLocally(artist._id);
+    setLoading(true);
+
     try {
-      if (isFollowing) {
-        await artistAPI.unfollow(artist._id);
-      } else {
-        await artistAPI.follow(artist._id);
+      const res = await artistAPI.getById(id);
+
+      let data = null;
+      if (res && res.data && res.data.data) {
+        data = res.data.data;
       }
+
+      setArtist(data);
+      console.log('ArtistPage: artist loaded', data ? data._id : null);
     } catch (error) {
-      console.error('Follow error:', error);
-      toggleFollowLocally(artist._id);
+      console.log(error);
+      setArtist(null);
+    } finally {
+      setLoading(false);
+      console.log('ArtistPage: fetchArtist end');
     }
   };
 
-  const handleSimilarArtistClick = (similarId) => {
-    navigate(`/artist/${similarId}`);
-    document.querySelector('main').scrollTo(0, 0);
+  const handleToggleFollow = async () => {
+    console.log('ArtistPage: handleToggleFollow');
+
+    if (!artist) {
+      return;
+    }
+
+    const artistId = artist._id;
+
+    // текущий статус берём из PlayerContext (он переживает refresh, потому что подтягивается с сервера)
+    const wasFollowing = player.isArtistFollowed(artistId);
+
+    // оптимистично меняем локально
+    player.toggleFollowLocally(artistId);
+
+    // (опционально) чтобы цифра followers менялась сразу в UI
+    setArtist((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const currentFollowers = typeof prev.followers === 'number' ? prev.followers : 0;
+
+      let nextFollowers = currentFollowers;
+      if (wasFollowing) {
+        nextFollowers = currentFollowers - 1;
+      } else {
+        nextFollowers = currentFollowers + 1;
+      }
+
+      if (nextFollowers < 0) {
+        nextFollowers = 0;
+      }
+
+      const next = {
+        ...prev,
+        followers: nextFollowers,
+      };
+
+      return next;
+    });
+
+    try {
+      if (wasFollowing) {
+        await artistAPI.unfollow(artistId);
+      } else {
+        await artistAPI.follow(artistId);
+      }
+
+      // на всякий — пересинхронизировать с сервером
+      await player.refreshFollowedArtists();
+    } catch (error) {
+      console.log(error);
+
+      // откат локального статуса
+      player.toggleFollowLocally(artistId);
+
+      // откат цифры followers
+      setArtist((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        const currentFollowers = typeof prev.followers === 'number' ? prev.followers : 0;
+
+        let nextFollowers = currentFollowers;
+        if (wasFollowing) {
+          // мы пытались unfollow, значит надо вернуть +1
+          nextFollowers = currentFollowers + 1;
+        } else {
+          // мы пытались follow, значит надо вернуть -1
+          nextFollowers = currentFollowers - 1;
+        }
+
+        if (nextFollowers < 0) {
+          nextFollowers = 0;
+        }
+
+        const next = {
+          ...prev,
+          followers: nextFollowers,
+        };
+
+        return next;
+      });
+    }
+  };  
+
+  const handlePlayTopTrack = (track) => {
+    console.log('ArtistPage: handlePlayTopTrack', track ? track._id : null);
+
+    if (!artist || !artist.tracks || artist.tracks.length === 0) {
+      return;
+    }
+
+    player.setPlaylist(artist.tracks);
+    player.setCurrentTrack(track);
+    player.play();
   };
 
-  const formatNumber = (num) => {
-    return new Intl.NumberFormat('en-US').format(num);
+  const handlePlayAll = () => {
+    console.log('ArtistPage: handlePlayAll');
+
+    if (!artist || !artist.tracks || artist.tracks.length === 0) {
+      return;
+    }
+
+    player.setPlaylist(artist.tracks);
+    player.setCurrentTrack(artist.tracks[0]);
+    player.play();
   };
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-gray-900"><i className="fas fa-spinner fa-spin text-4xl text-blue-400" /></div>;
-  if (!artist) return <div className="flex h-screen items-center justify-center bg-gray-900 text-white">Artist not found</div>;
+  const handleSimilarArtistClick = (artistId) => {
+    console.log('ArtistPage: open similar artist', artistId);
 
-  const isFollowing = isArtistFollowed(artist._id);
+    navigate(`/artist/${artistId}`);
+
+    const main = document.querySelector('main');
+    if (main) {
+      main.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <i className="fas fa-spinner fa-spin text-4xl text-blue-400" />
+      </div>
+    );
+  }
+
+  if (!artist) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
+        Artist not found
+      </div>
+    );
+  }
+
+  let verifiedBlock = null;
+  if (artist.verified) {
+    verifiedBlock = (
+      <div className="flex items-center gap-2 mb-2">
+        <i className="fas fa-check-circle text-blue-500" />
+        <span className="text-sm text-blue-400">Verified Artist</span>
+      </div>
+    );
+  }
+
+  let albumsBlock = null;
+  if (artist.albums && artist.albums.length > 0) {
+    albumsBlock = (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {artist.albums.map((album) => (
+          <Link
+            key={album._id}
+            to={`/album/${album._id}`}
+            className="card-hover bg-gray-800/40 rounded-xl p-4 border border-gray-700/50"
+          >
+            <img src={album.coverUrl} alt={album.title} className="w-full aspect-square object-cover rounded-lg mb-3" />
+            <h4 className="font-semibold text-white truncate">{album.title}</h4>
+            <p className="text-xs text-gray-400">{album.year}</p>
+          </Link>
+        ))}
+      </div>
+    );
+  } else {
+    albumsBlock = (
+      <div className="text-center py-10 text-gray-400 bg-gray-800/30 rounded-xl">
+        <p>No albums yet</p>
+      </div>
+    );
+  }
+
+  let topTracksBlock = null;
+  if (artist.tracks && artist.tracks.length > 0) {
+    const top = artist.tracks.slice(0, 10);
+
+    topTracksBlock = (
+      <div className="space-y-1">
+        {top.map((track, index) => (
+          <TrackItem
+            key={track._id}
+            track={track}
+            index={index}
+            onPlay={() => handlePlayTopTrack(track)}
+            showAlbum={true}
+            showArtist={false}
+            showMenu={true}
+          />
+        ))}
+      </div>
+    );
+  } else {
+    topTracksBlock = (
+      <div className="text-center py-10 text-gray-400 bg-gray-800/30 rounded-xl">
+        <p>No tracks yet</p>
+      </div>
+    );
+  }
+
+  let similarBlock = null;
+  if (artist.similarArtists && artist.similarArtists.length > 0) {
+    similarBlock = (
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {artist.similarArtists.map((a) => (
+          <button
+            key={a._id}
+            onClick={() => handleSimilarArtistClick(a._id)}
+            className="flex items-center gap-3 bg-gray-800/40 border border-gray-700/50 rounded-xl px-4 py-3 hover:bg-gray-800/70 transition-all shrink-0"
+          >
+            <img src={a.imageUrl} alt={a.name} className="w-12 h-12 rounded-full object-cover" />
+            <div className="text-left">
+              <div className="font-semibold text-white">{a.name}</div>
+              <div className="text-xs text-gray-400">Artist</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const isFollowing = player.isArtistFollowed(artist._id);
+  let followText = 'Follow';
+  if (isFollowing) {
+    followText = 'Following';
+  }
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav />
-        <main className="flex-1 overflow-y-auto pb-32 scroll-smooth">
 
-          {/* --- HERO SECTION --- */}
-          <div className="relative h-[40vh] min-h-[340px] max-h-[500px]">
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${artist.coverImage || artist.imageUrl})` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent" />
-            </div>
-
-            <div className="absolute bottom-0 left-0 p-8 w-full z-10">
-              <div className="flex items-center gap-2 mb-2 text-white">
-                {artist.verified && <i className="fas fa-certificate text-blue-400 text-xl" title="Verified Artist"></i>}
-                <span className="text-sm font-medium tracking-wider uppercase text-gray-200">Verified Artist</span>
+        <main className="flex-1 overflow-y-auto pb-32">
+          <div className="px-8 py-10 bg-gradient-to-b from-gray-950 via-gray-900 to-gray-900 border-b border-gray-800">
+            <div className="flex flex-col md:flex-row items-start md:items-end gap-8">
+              <div className="w-48 h-48 md:w-56 md:h-56 rounded-full overflow-hidden shadow-2xl">
+                <img src={artist.imageUrl} alt={artist.name} className="w-full h-full object-cover" />
               </div>
+              <div className="flex-1">
+                {verifiedBlock}
+                <h1 className="text-5xl md:text-7xl font-black text-white mb-6 tracking-tight">{artist.name}</h1>
+                <div className="flex flex-wrap items-center gap-6 mb-6 text-sm text-gray-300">
+                  <div>
+                    <span className="text-white font-bold">{formatNumber(artist.monthlyListeners)}</span> monthly listeners
+                  </div>
+                  <div>
+                    <span className="text-white font-bold">{formatNumber(artist.followers)}</span> followers
+                  </div>
+                </div>
 
-              <h1 className="text-6xl md:text-8xl font-black text-white mb-6 drop-shadow-lg tracking-tight">
-                {artist.name}
-              </h1>
 
-              <div className="flex items-center gap-6 mb-2">
-                <p className="text-gray-300 text-sm font-medium">
-                  <span className="text-white font-bold">{formatNumber(artist.monthlyListeners || 0)}</span> monthly listeners
-                </p>
-              </div>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handlePlayAll}
+                    className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white flex items-center justify-center hover:scale-105 transition-all shadow-lg"
+                  >
+                    <i className="fas fa-play text-xl ml-1" />
+                  </button>
 
-              {/* Buttons: ВЕРНУЛ ТВОИ ЦВЕТА */}
-              <div className="flex items-center gap-4 mt-6">
-                {/* КНОПКА PLAY: Теперь сине-фиолетовый градиент (как в Liked Songs) */}
-                <button
-                  onClick={handlePlay}
-                  className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white flex items-center justify-center hover:scale-105 transition-all shadow-lg hover:shadow-blue-500/50"
-                >
-                  <i className="fas fa-play text-xl ml-1"></i>
-                </button>
-
-                {/* КНОПКА FOLLOW */}
-                <button
-                  onClick={handleFollow}
-                  className={`px-8 py-2 rounded-full text-sm font-bold border transition-all uppercase tracking-wide ${isFollowing
-                    ? 'border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white'
-                    : 'bg-white text-black border-transparent hover:scale-105'
-                    }`}
-                >
-                  {isFollowing ? 'Following' : 'Follow'}
-                </button>
-
-                <button className="text-gray-400 hover:text-white transition-colors">
-                  <i className="fas fa-ellipsis-h text-2xl"></i>
-                </button>
+                  <button
+                    onClick={handleToggleFollow}
+                    className={`px-6 py-3 rounded-full border text-sm font-semibold transition-all ${isFollowing ? 'border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white' : 'bg-white text-black border-transparent hover:scale-105'}`}
+                  >
+                    {followText}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="px-8 py-8 max-w-7xl mx-auto">
+          <div className="px-8 py-8">
+            <section className="mb-12">
+              <h3 className="text-2xl font-bold text-white mb-4">Popular</h3>
+              {topTracksBlock}
+            </section>
 
-            {/* --- POPULAR TRACKS --- */}
-            <div className="grid lg:grid-cols-3 gap-12">
-              <div className="lg:col-span-2">
-                <h2 className="text-2xl font-bold text-white mb-6">Popular</h2>
-                <div className="flex flex-col">
-                  {artist.tracks && artist.tracks.slice(0, 5).map((track, index) => (
-                    <TrackItem
-                      key={track._id}
-                      track={track}
-                      index={index} 
-                      onPlay={() => {
-                        setPlaylist(artist.tracks);
-                        setCurrentTrack(track);
-                        play();
-                      }}
-                      showArtist={false}
-                    />
-                  ))}
-                </div>
-                </div>
+            <section className="mb-12">
+              <h3 className="text-2xl font-bold text-white mb-4">Albums</h3>
+              {albumsBlock}
+            </section>
 
-              {/* --- ARTIST BIO --- */}
-              <div className="lg:col-span-1">
-                <h2 className="text-2xl font-bold text-white mb-6">About</h2>
-                <div className="bg-gray-800/50 rounded-xl p-6 hover:bg-gray-800 transition-colors cursor-pointer relative overflow-hidden group border border-transparent hover:border-blue-500/30">
-                  <div
-                    className="absolute inset-0 bg-cover bg-center opacity-20 group-hover:scale-105 transition-transform duration-700"
-                    style={{ backgroundImage: `url(${artist.imageUrl})` }}
-                  />
-                  <div className="relative z-10">
-                    <p className="text-gray-300 leading-relaxed line-clamp-6">
-                      {artist.bio || "No biography available for this artist."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* --- ALBUMS --- */}
-            {artist.albums && artist.albums.length > 0 && (
-              <div className="mt-12">
-                <h2 className="text-2xl font-bold text-white mb-6">Discography</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                  {artist.albums.map((album, idx) => (
-                    <Link to={`/album/${album._id}`} key={album._id} className="bg-gray-900/40 p-4 rounded-xl hover:bg-gray-800 transition-all group cursor-pointer border border-transparent hover:border-purple-500/30 block">
-                      <div className="relative aspect-square mb-4 rounded-lg overflow-hidden shadow-lg">
-                        <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-
-                        {/* Play Button on Hover */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-black shadow-lg translate-y-2 group-hover:translate-y-0 transition-transform">
-                            <i className="fas fa-play ml-1"></i>
-                          </div>
-                        </div>
-                      </div>
-                      <h3 className="font-bold text-white truncate">{album.title}</h3>
-                      <p className="text-sm text-gray-400">{album.year} • Album</p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* --- SIMILAR ARTISTS --- */}
-            {artist.similarArtists && artist.similarArtists.length > 0 && (
-              <div className="mt-16 mb-10">
-                <h2 className="text-2xl font-bold text-white mb-6">Fans also like</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                  {artist.similarArtists.map((simArtist) => (
-                    <div
-                      key={simArtist._id}
-                      onClick={() => handleSimilarArtistClick(simArtist._id)}
-                      className="bg-gray-900/40 p-4 rounded-xl hover:bg-gray-800 transition-all group cursor-pointer flex flex-col items-center text-center border border-transparent hover:border-blue-500/30"
-                    >
-                      <div className="w-40 h-40 mb-4 rounded-full overflow-hidden shadow-lg relative border-2 border-transparent group-hover:border-blue-500 transition-all">
-                        <img
-                          src={simArtist.imageUrl}
-                          alt={simArtist.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-                      <h3 className="font-bold text-white hover:underline truncate w-full">{simArtist.name}</h3>
-                      <p className="text-sm text-gray-400">Artist</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
+            <section>
+              <h3 className="text-2xl font-bold text-white mb-4">Fans also like</h3>
+              {similarBlock}
+            </section>
           </div>
         </main>
       </div>

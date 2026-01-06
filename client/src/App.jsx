@@ -1,10 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PlayerProvider } from './contexts/PlayerContext';
 
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
+import TracksPage from './pages/TracksPage';
 import PlaylistPage from './pages/PlaylistPage';
 import PlaylistDetailPage from './pages/PlaylistDetailPage';
 import ProfilePage from './pages/ProfilePage';
@@ -12,33 +14,61 @@ import ArtistPage from './pages/ArtistPage';
 import AlbumPage from './pages/AlbumPage';
 import LikedSongsPage from './pages/LikedSongsPage';
 import RecentlyPlayedPage from './pages/RecentlyPlayedPage';
-
-
 import MusicDNAPage from './pages/MusicDNAPage';
 
 import MusicPlayer from './components/MusicPlayer';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" />;
-};
+function ProtectedRoute(props) {
+  const auth = useAuth();
+  const isAuthenticated = auth.isAuthenticated;
+
+  const children = props.children;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  return children;
+}
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const auth = useAuth();
+  const isAuthenticated = auth.isAuthenticated;
+
+  let loginElement = <LoginPage />;
+  if (isAuthenticated) {
+    loginElement = <Navigate to="/" />;
+  }
+
+  let fallbackPath = '/login';
+  if (isAuthenticated) {
+    fallbackPath = '/';
+  }
+
+  let musicPlayerBlock = null;
+  if (isAuthenticated) {
+    musicPlayerBlock = <MusicPlayer />;
+  }
 
   return (
     <>
       <Routes>
-        <Route
-          path="/login"
-          element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />}
-        />
+        <Route path="/login" element={loginElement} />
 
         <Route
           path="/"
           element={
             <ProtectedRoute>
               <HomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tracks"
+          element={
+            <ProtectedRoute>
+              <TracksPage />
             </ProtectedRoute>
           }
         />
@@ -52,7 +82,6 @@ function AppRoutes() {
           }
         />
 
-
         <Route
           path="/playlists"
           element={
@@ -61,6 +90,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/playlists/:id"
           element={
@@ -69,6 +99,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/profile"
           element={
@@ -77,6 +108,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/artist/:id"
           element={
@@ -85,9 +117,16 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route path="/album/:id" element={
-          <ProtectedRoute><AlbumPage /></ProtectedRoute>
-        } />
+
+        <Route
+          path="/album/:id"
+          element={
+            <ProtectedRoute>
+              <AlbumPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/liked-songs"
           element={
@@ -96,6 +135,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/recently-played"
           element={
@@ -105,13 +145,10 @@ function AppRoutes() {
           }
         />
 
-        <Route
-          path="*"
-          element={<Navigate to={isAuthenticated ? '/' : '/login'} replace />}
-        />
+        <Route path="*" element={<Navigate to={fallbackPath} replace />} />
       </Routes>
 
-      {isAuthenticated && <MusicPlayer />}
+      {musicPlayerBlock}
     </>
   );
 }

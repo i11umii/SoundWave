@@ -5,36 +5,60 @@ import Track from './models/Track.js';
 
 dotenv.config();
 
-const checkArtists = async () => {
+async function checkArtists() {
+  console.log('[check-artists] вход');
+
   try {
+    console.log('[check-artists] подключаемся к MongoDB');
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB\n');
+    console.log('[check-artists] MongoDB подключена');
 
     const artists = await Artist.find();
-    console.log('🎤 All Artists with IDs:');
-    artists.forEach((artist, index) => {
-      console.log(`${index + 1}. ${artist.name}`);
-      console.log(`   ID: ${artist._id}`);
-      console.log(`   Genres: ${artist.genres.join(', ')}`);
+    console.log('[check-artists] артистов...', artists.length);
+
+    for (let i = 0; i < artists.length; i = i + 1) {
+      const artist = artists[i];
+      console.log((i + 1) + '. ' + artist.name);
+      console.log('   id: ' + artist._id.toString());
+      console.log('   genres: ' + artist.genres.join(', '));
       console.log('');
-    });
+    }
 
     const tracks = await Track.find().populate('artist');
-    console.log('🎵 Tracks with Artist References:');
-    tracks.forEach(track => {
-      console.log(`"${track.title}"`);
-      console.log(`   Artist Name: ${track.artist?.name}`);
-      console.log(`   Artist ID: ${track.artist?._id}`);
-      console.log('');
-    });
+    console.log('[check-artists] треков: ' + tracks.length);
 
+    for (let i = 0; i < tracks.length; i = i + 1) {
+      const track = tracks[i];
+
+      let artistName = 'нет';
+      let artistId = 'нет';
+
+      if (track.artist) {
+        if (track.artist.name) {
+          artistName = track.artist.name;
+        }
+
+        if (track.artist._id) {
+          artistId = track.artist._id.toString();
+        }
+      }
+
+      console.log('"' + track.title + '"');
+      console.log('   artist name: ' + artistName);
+      console.log('   artist id: ' + artistId);
+      console.log('');
+    }
+
+    console.log('[check-artists] закрываем соединение');
     await mongoose.connection.close();
-    console.log('✅ Check complete');
+
+    console.log('[check-artists] готово');
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.log('[check-artists] ошибка');
+    console.log(error);
     process.exit(1);
   }
-};
+}
 
 checkArtists();
